@@ -24,6 +24,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/lib/supabase/client";
+import Image from "next/image";
 
 // Schema for update patient form (same as patientFormSchema from PatientForm.tsx)
 export const updatePatientFormSchema = z.object({
@@ -336,11 +337,12 @@ export default function UpdatePatientForm() {
                                             <FormItem className="flex flex-col items-center">
                                                 <div className="relative w-40 h-40 rounded-full overflow-hidden border">
                                                     {filePreview ? (
-                                                        <img
+                                                        <Image
                                                             src={filePreview}
                                                             alt="Profile preview"
                                                             className="w-full h-full object-cover"
-                                                            onError={(e) => console.error('Failed to load profile image:', filePreview)}
+                                                            width={160}
+                                                            height={160}
                                                         />
                                                     ) : (
                                                         <div className="w-full h-full bg-gray-200 flex items-center justify-center">

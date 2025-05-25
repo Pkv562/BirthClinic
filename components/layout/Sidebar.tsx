@@ -15,7 +15,6 @@ import {
   SidebarGroupLabel,
   SidebarProvider,
 } from "@/components/ui/sidebar"
-import { toast } from "sonner"
 
 type SidebarProps = {
   className?: string
@@ -26,26 +25,6 @@ export default function Sidebar({ className }: SidebarProps) {
   const router = useRouter()
 
   const isRouteActive = (prefix: string) => pathname.startsWith(prefix)
-
-  const handleLogout = async () => {
-    try {
-      const response = await fetch('/api/logout', {
-        method: 'POST',
-      });
-
-      if (response.ok) {
-        // Clear session storage
-        sessionStorage.removeItem('user');
-        // Redirect to login page
-        router.push('/');
-        toast.success('Logged out successfully');
-      } else {
-        toast.error('Failed to logout');
-      }
-    } catch (error) {
-      toast.error('Error during logout');
-    }
-  };
 
   return (
     <SidebarProvider>

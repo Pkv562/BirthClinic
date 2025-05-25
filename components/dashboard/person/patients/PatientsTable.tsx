@@ -91,6 +91,33 @@ interface Patient {
     address: string | null;
 }
 
+interface ExportPatientData {
+    first_name: string;
+    middle_name: string;
+    last_name: string;
+    birth_date: string | null;
+    age: string | null;
+    contact_number: string | null;
+    address: string | null;
+    status: string;
+}
+
+interface ExportContent {
+    appointments: boolean;
+    supplements: boolean;
+    prescriptions: boolean;
+    labRecords: boolean;
+}
+
+interface ExportData {
+    patient: ExportPatientData;
+    exportOptions: ExportContent;
+    appointments?: Array<Record<string, unknown>>;
+    supplements?: Array<Record<string, unknown>>;
+    prescriptions?: Array<Record<string, unknown>>;
+    labRecords?: Array<Record<string, unknown>>;
+}
+
 const columns: ColumnDef<Patient>[] = [
     {
         id: "select",
@@ -819,20 +846,20 @@ export default function PatientsTable() {
                 link.click();
                 toast.success("CSV exported successfully.");
                 setOpenExportDialog(false);
-            } catch (error: any) {
+            } catch (error) {
                 console.error("CSV export failed:", error);
-                toast.error(`Failed to generate CSV: ${error.message}`);
+                toast.error(`Failed to generate CSV: ${error instanceof Error ? error.message : 'Unknown error'}`);
             }
         } else {
             try {
                 // For each patient, fetch their additional data based on export content options
                 for (const patient of patientsToExport) {
                     console.log('Processing patient for PDF:', patient.name);
-                    const exportData: any = {
+                    const exportData: ExportData = {
                         patient: {
                             first_name: patient.name.split(" ")[0],
                             middle_name: patient.name.split(" ").length > 2 ? patient.name.split(" ")[1] : "",
-                            last_name: patient.name.split(" ").pop(),
+                            last_name: patient.name.split(" ").pop() || "",
                             birth_date: patient.birth_date,
                             age: patient.age,
                             contact_number: patient.contact_number,
@@ -930,9 +957,9 @@ export default function PatientsTable() {
 
                 toast.success(`Successfully exported ${patientsToExport.length} patient(s) to PDF`);
                 setOpenExportDialog(false);
-            } catch (error: any) {
+            } catch (error) {
                 console.error("Export failed:", error);
-                toast.error(`Failed to generate export: ${error.message}`);
+                toast.error(`Failed to generate export: ${error instanceof Error ? error.message : 'Unknown error'}`);
             }
         }
     };
