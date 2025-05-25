@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { createPatient } from "@/lib/supabase/create/createPatient";
 import { supabase } from "@/lib/supabase/client";
+import Image from "next/image";
 
 // Schema for patient form
 export const patientFormSchema = z.object({
@@ -185,10 +186,12 @@ export default function PatientForm() {
                                             <FormItem className="flex flex-col items-center">
                                                 <div className="relative w-40 h-40 rounded-full overflow-hidden border">
                                                     {filePreview ? (
-                                                        <img
+                                                        <Image
                                                             src={filePreview}
                                                             alt="Profile preview"
                                                             className="w-full h-full object-cover"
+                                                            width={160}
+                                                            height={160}
                                                         />
                                                     ) : (
                                                         <div className="w-full h-full bg-gray-200 flex items-center justify-center">

@@ -10,7 +10,6 @@ import {
   Stethoscope,
   Settings,
   UsersRound,
-  LogOut
 } from "lucide-react"
 import {
   SidebarGroupLabel,

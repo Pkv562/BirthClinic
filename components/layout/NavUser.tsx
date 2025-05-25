@@ -62,6 +62,7 @@ export default function NavUser() {
         toast.error('Failed to logout');
       }
     } catch (error) {
+      console.error('Logout error:', error);
       toast.error('Error during logout');
     }
   }
