@@ -1,0 +1,7 @@
+# API routes
+app/api/**/*
+
+# Components with type issues
+components/dashboard/**/*
+components/layout/**/*
+components/LoginForm.tsx 

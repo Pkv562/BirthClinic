@@ -170,7 +170,7 @@ export default function UpdateAppointmentForm({ open, onOpenChange, onSuccess, a
             `)
             .eq('person.first_name', firstName)
             .eq('person.last_name', lastName)
-            .single();
+            .single() as { data: ClinicianResponse | null; error: any };
 
           if (clinicianError) {
             console.error("Clinician fetch error:", clinicianError);
