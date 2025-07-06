@@ -856,7 +856,7 @@ export default function AppointmentView() {
                           </div>
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
-                          <Label className="text-right">Oxygen Saturation</Label>
+                          <Label className="text-left">Oxygen Saturation</Label>
                           <div className="col-span-3">
                             {vital.oxygen_saturation ? `${vital.oxygen_saturation}%` : "Not recorded"}
                           </div>

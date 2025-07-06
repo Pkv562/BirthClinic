@@ -55,7 +55,7 @@ export default function LoginForm({
       if (result.success) {
         toast.success("Login successful!");
         // Store user data in session storage with additional information
-        sessionStorage.setItem('user', JSON.stringify({
+        const userData = {
           name: result.user.name,
           firstName: result.user.firstName,
           role: result.user.role,
@@ -64,7 +64,13 @@ export default function LoginForm({
           isAdmin: result.user.isAdmin,
           isDoctor: result.user.isDoctor,
           clinicianId: result.user.clinicianId
-        }));
+        };
+        
+        sessionStorage.setItem('user', JSON.stringify(userData));
+        
+        // Also store in cookie for cross-tab persistence
+        document.cookie = `user_data=${encodeURIComponent(JSON.stringify(userData))}; path=/; max-age=${60 * 60 * 24 * 7}; ${process.env.NODE_ENV === 'production' ? 'secure;' : ''} samesite=lax`;
+        
         router.push("/Dashboard");
       } else {
         toast.error(result.error || "Invalid name or password");

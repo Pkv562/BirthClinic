@@ -19,6 +19,7 @@ interface DatePickerProps {
   endYear?: number;
   value?: Date;
   onChange?: (date: Date) => void;
+  triggerClassName?: string;
 }
 
 export function DatePicker({
@@ -26,6 +27,7 @@ export function DatePicker({
   endYear = getYear(new Date()) + 100,
   value,
   onChange,
+  triggerClassName,
 }: DatePickerProps) {
   const [internalDate, setInternalDate] = React.useState<Date>(value || new Date());
 
@@ -81,7 +83,8 @@ export function DatePicker({
         <Button
           variant={"outline"}
           className={cn(
-            "w-[250px] justify-start text-left font-normal",
+            "justify-start text-left font-normal",
+            triggerClassName ?? "w-[250px]",
             !Date && "text-muted-foreground"
           )}
         >

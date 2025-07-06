@@ -42,7 +42,7 @@ import { supabase } from "@/lib/supabase/client";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { debounce } from "lodash";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { DatePicker } from "@/components/ui/date-picker";
+import { isSameDay, isSameWeek, isSameMonth, isSameYear, subMonths, subYears, parse } from "date-fns";
 
 type Props = {
     context: "patient" | "clinician";
@@ -64,10 +64,20 @@ export default function Appointments({ context, id, refreshTrigger = 0 }: Props)
     const [appointments, setAppointments] = useState<Appointment[]>([]);
     const [searchTerm, setSearchTerm] = useState("");
     const [statusFilter, setStatusFilter] = useState<string>("all");
-    const [dateFilter, setDateFilter] = useState<string>("");
+    const [dateRange, setDateRange] = useState("all");
     const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
     const { isAdmin } = useIsAdmin();
     const [loading, setLoading] = useState(true);
+
+    const dateRangeOptions = [
+        { value: "all", label: "All Time" },
+        { value: "day", label: "Today" },
+        { value: "week", label: "This Week" },
+        { value: "month", label: "This Month" },
+        { value: "6months", label: "Last 6 Months" },
+        { value: "year", label: "This Year" },
+        { value: "5years", label: "Last 5 Years" },
+    ];
 
     useEffect(() => {
         async function fetchAppointments() {
@@ -160,12 +170,33 @@ export default function Appointments({ context, id, refreshTrigger = 0 }: Props)
         
         const matchesStatus = statusFilter === "all" || appointment.status.toLowerCase() === statusFilter.toLowerCase();
         
-        const matchesDate = !dateFilter || appointment.date === new Date(dateFilter).toLocaleDateString();
+        // Date range filter
+        const now = new Date();
+        const apptDate = new Date(appointment.date);
+        const matchesDateRange = (() => {
+            if (dateRange === "all") return true;
+            switch (dateRange) {
+                case "day":
+                    return isSameDay(apptDate, now);
+                case "week":
+                    return isSameWeek(apptDate, now, { weekStartsOn: 1 });
+                case "month":
+                    return isSameMonth(apptDate, now);
+                case "6months":
+                    return apptDate >= subMonths(now, 6);
+                case "year":
+                    return isSameYear(apptDate, now);
+                case "5years":
+                    return apptDate >= subYears(now, 5);
+                default:
+                    return true;
+            }
+        })();
 
         const matchesPaymentStatus = paymentStatusFilter === "all" || 
             appointment.payment_status.toLowerCase() === paymentStatusFilter.toLowerCase();
 
-        return matchesSearch && matchesStatus && matchesDate && matchesPaymentStatus;
+        return matchesSearch && matchesStatus && matchesDateRange && matchesPaymentStatus;
     });
 
     const handleDelete = async (appointmentId: number) => {
@@ -355,11 +386,17 @@ export default function Appointments({ context, id, refreshTrigger = 0 }: Props)
                                 </SelectContent>
                             </Select>
                         </div>
-                        <div className="flex-none w-[200px]">
-                            <DatePicker
-                                value={dateFilter ? new Date(dateFilter) : undefined}
-                                onChange={(date) => setDateFilter(date ? date.toISOString() : "")}
-                            />
+                        <div className="flex-none w-[180px]">
+                            <Select value={dateRange} onValueChange={setDateRange}>
+                                <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="Filter by date range" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {dateRangeOptions.map(opt => (
+                                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
                     </div>
                 </div>
@@ -369,7 +406,7 @@ export default function Appointments({ context, id, refreshTrigger = 0 }: Props)
                 ) : filteredAppointments.length === 0 ? (
                     <div className="text-center py-4">
                         <p className="text-sm text-muted-foreground">
-                            {searchTerm || statusFilter !== "all" || dateFilter || paymentStatusFilter !== "all"
+                            {searchTerm || statusFilter !== "all" || dateRange !== "all" || paymentStatusFilter !== "all"
                                 ? "No appointments found matching the search criteria."
                                 : context === 'patient'
                                     ? "No appointments scheduled for this patient."

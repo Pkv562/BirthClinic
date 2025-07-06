@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
       if (exportOptions.overview) {
         csvRows.push(["Overview", "Active Patients", data.activePatients]);
         csvRows.push(["Overview", "Active Clinicians", data.activeClinicians]);
-        csvRows.push(["Overview", "Total Appointments", data.totalAppointments]);
+        csvRows.push(["Overview", "Today's Appointments", data.todayAppointmentsCount]);
       }
 
       if (exportOptions.ageDistribution && data.chartData) {
@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
       const overviewData = [
         ["Active Patients", data.activePatients.toString()],
         ["Active Clinicians", data.activeClinicians.toString()],
-        ["Total Appointments", data.totalAppointments.toString()],
+        ["Today's Appointments", data.todayAppointmentsCount.toString()],
       ];
 
       overviewData.forEach((row) => {

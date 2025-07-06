@@ -66,10 +66,32 @@ export async function POST(request: Request) {
         }
       });
 
+      // Store user data in a cookie for cross-tab persistence
+      const userData = {
+        name: fullName,
+        firstName: admin.first_name,
+        role: admin.role,
+        avatar: null,
+        userType: 'admin',
+        isAdmin: true,
+        isDoctor: false,
+        clinicianId: null
+      };
+
       response.cookies.set({
         name: 'auth_token',
         value: 'authenticated',
         httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 7
+      });
+
+      // Store user data in a non-httpOnly cookie for client-side access
+      response.cookies.set({
+        name: 'user_data',
+        value: JSON.stringify(userData),
+        httpOnly: false,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
         maxAge: 60 * 60 * 24 * 7
@@ -138,10 +160,32 @@ export async function POST(request: Request) {
       }
     });
 
+    // Store user data in a cookie for cross-tab persistence
+    const userData = {
+      name: fullName,
+      firstName: person.first_name,
+      role: clinicianData.role,
+      avatar: person.fileurl,
+      userType: 'clinician',
+      isAdmin: false,
+      isDoctor: clinicianData.role.toLowerCase().includes('doctor'),
+      clinicianId: clinicianData.id.toString()
+    };
+
     response.cookies.set({
       name: 'auth_token',
       value: 'authenticated',
       httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 7
+    });
+
+    // Store user data in a non-httpOnly cookie for client-side access
+    response.cookies.set({
+      name: 'user_data',
+      value: JSON.stringify(userData),
+      httpOnly: false,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 7

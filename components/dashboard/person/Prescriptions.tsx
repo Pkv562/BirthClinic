@@ -840,6 +840,7 @@ export default function Prescriptions({
               <DatePicker
                 value={dateFilter ? new Date(dateFilter) : undefined}
                 onChange={(date) => setDateFilter(date ? date.toISOString() : "")}
+                triggerClassName="w-[180px]"
               />
             </div>
           </div>
@@ -872,7 +873,7 @@ export default function Prescriptions({
                 ) : (
                   <TableHead>Patient</TableHead>
                 )}
-                <TableHead>Issued on</TableHead>
+                <TableHead className="w-[120px] text-center">Issued on</TableHead>
                 {isAdmin && <TableHead>Actions</TableHead>}
               </TableRow>
             </TableHeader>
@@ -914,7 +915,7 @@ export default function Prescriptions({
                   <TableCell>
                     {context === 'patient' ? prescription.clinician : prescription.patient}
                   </TableCell>
-                  <TableCell>{prescription.date}</TableCell>
+                  <TableCell className="max-w-[100px] w-[100px] truncate text-ellipsis overflow-hidden text-center">{prescription.date}</TableCell>
                   {isAdmin && (
                     <TableCell>
                       <Button

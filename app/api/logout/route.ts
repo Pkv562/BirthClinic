@@ -11,5 +11,13 @@ export async function POST() {
     path: '/',
   });
 
+  // Clear the user data cookie
+  response.cookies.set({
+    name: 'user_data',
+    value: '',
+    expires: new Date(0),
+    path: '/',
+  });
+
   return response;
 } 

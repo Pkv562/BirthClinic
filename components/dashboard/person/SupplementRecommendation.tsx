@@ -779,6 +779,7 @@ export default function SupplementRecommendation({
                             <DatePicker
                                 value={dateFilter ? new Date(dateFilter) : undefined}
                                 onChange={(date) => setDateFilter(date ? date.toISOString() : "")}
+                                triggerClassName="w-[180px]"
                             />
                         </div>
                     </div>
@@ -811,7 +812,7 @@ export default function SupplementRecommendation({
                                 ) : (
                                     <TableHead>Patient</TableHead>
                                 )}
-                                <TableHead>Issued on</TableHead>
+                                <TableHead className="w-[120px] text-center">Issued on</TableHead>
                                 {isAdmin && <TableHead>Actions</TableHead>}
                             </TableRow>
                         </TableHeader>
@@ -853,7 +854,7 @@ export default function SupplementRecommendation({
                                     <TableCell>
                                         {context === 'patient' ? supplement.clinician : supplement.patient}
                                     </TableCell>
-                                    <TableCell>{supplement.date}</TableCell>
+                                    <TableCell className="max-w-[120px] w-[120px] truncate text-ellipsis overflow-hidden text-center">{supplement.date}</TableCell>
                                     {isAdmin && (
                                         <TableCell>
                                             <Button

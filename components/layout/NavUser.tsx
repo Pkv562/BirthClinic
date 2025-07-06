@@ -5,6 +5,7 @@ import {
   LogOut,
 } from "lucide-react"
 import { useEffect, useState } from "react"
+import { getUserDataFromCookie } from "@/lib/utils"
 import {
   Avatar,
   AvatarFallback,
@@ -41,10 +42,19 @@ export default function NavUser() {
   const [userData, setUserData] = useState<UserData | null>(null)
 
   useEffect(() => {
-    // Get user data from session storage
+    // First try to get user data from sessionStorage (for current tab)
     const storedUser = sessionStorage.getItem('user')
     if (storedUser) {
       setUserData(JSON.parse(storedUser))
+      return
+    }
+
+    // If not in sessionStorage, try to get from cookie (for new tabs)
+    const cookieUserData = getUserDataFromCookie()
+    if (cookieUserData) {
+      setUserData(cookieUserData)
+      // Also store in sessionStorage for this tab
+      sessionStorage.setItem('user', JSON.stringify(cookieUserData))
     }
   }, [])
 
@@ -56,6 +66,8 @@ export default function NavUser() {
 
       if (response.ok) {
         sessionStorage.removeItem('user');
+        // Also clear the user_data cookie
+        document.cookie = 'user_data=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
         router.push("/")
         toast.success('Logged out successfully');
       } else {

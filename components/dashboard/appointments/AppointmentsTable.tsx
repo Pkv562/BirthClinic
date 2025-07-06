@@ -13,6 +13,8 @@ import {
   ChevronDownIcon,
   TextSearch,
   ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -131,6 +133,7 @@ interface AdvancedSearch {
   service?: string;
   status?: string;
   payment_status?: string;
+  date_filter?: string;
 }
 
 type Column = ColumnDef<Appointment> & {
@@ -150,7 +153,7 @@ const getClinicianName = (appointment: Appointment) => {
   return `${person.first_name}${person.middle_name ? ` ${person.middle_name}` : ""} ${person.last_name}`;
 };
 
-const columns: Column[] = [
+const columns: ColumnDef<Appointment>[] = [
   {
     id: "select",
     header: ({ table }) => (
@@ -173,40 +176,42 @@ const columns: Column[] = [
     enableSorting: false,
   },
   {
-    id: "patient_name",
+    accessorKey: "patient_name",
     header: ({ column }) => (
       <Button
         variant="ghost"
         onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        className="whitespace-nowrap"
       >
         Patient Name
-        <ArrowUpDown className="ml-2 h-4 w-4" />
+        {column.getIsSorted() === "asc" ? (
+          <ArrowUp className="ml-2 h-4 w-4" />
+        ) : column.getIsSorted() === "desc" ? (
+          <ArrowDown className="ml-2 h-4 w-4" />
+        ) : (
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        )}
       </Button>
     ),
-    accessorKey: "patient_name",
-    cell: ({ row }) => (
-      <div className="font-medium">{row.getValue("patient_name")}</div>
-    ),
-    sortingFn: "text"
+    cell: ({ row }) => <div className="font-medium">{row.getValue("patient_name")}</div>,
   },
   {
-    id: "clinician_name",
+    accessorKey: "clinician_name",
     header: ({ column }) => (
       <Button
         variant="ghost"
         onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        className="whitespace-nowrap"
       >
         Clinician Name
-        <ArrowUpDown className="ml-2 h-4 w-4" />
+        {column.getIsSorted() === "asc" ? (
+          <ArrowUp className="ml-2 h-4 w-4" />
+        ) : column.getIsSorted() === "desc" ? (
+          <ArrowDown className="ml-2 h-4 w-4" />
+        ) : (
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        )}
       </Button>
     ),
-    accessorKey: "clinician_name",
-    cell: ({ row }) => (
-      <div className="font-medium">{row.getValue("clinician_name")}</div>
-    ),
-    sortingFn: "text"
+    cell: ({ row }) => <div className="font-medium">{row.getValue("clinician_name")}</div>,
   },
   {
     accessorKey: "date",
@@ -214,20 +219,23 @@ const columns: Column[] = [
       <Button
         variant="ghost"
         onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        className="whitespace-nowrap"
       >
         Date
-        <ArrowUpDown className="ml-2 h-4 w-4" />
+        {column.getIsSorted() === "asc" ? (
+          <ArrowUp className="ml-2 h-4 w-4" />
+        ) : column.getIsSorted() === "desc" ? (
+          <ArrowDown className="ml-2 h-4 w-4" />
+        ) : (
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        )}
       </Button>
     ),
     cell: ({ row }) => (
       <div>{new Date(row.getValue("date")).toLocaleDateString()}</div>
     ),
     sortingFn: (rowA, rowB, columnId) => {
-      const a = new Date(rowA.getValue(columnId)).getTime();
-      const b = new Date(rowB.getValue(columnId)).getTime();
-      return a < b ? -1 : a > b ? 1 : 0;
-    }
+      return new Date(rowA.getValue(columnId)).getTime() - new Date(rowB.getValue(columnId)).getTime();
+    },
   },
   {
     accessorKey: "service",
@@ -351,7 +359,13 @@ export default function AppointmentsTable() {
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
           Patient Name
-          <ArrowUpDown className="ml-2 h-4 w-4" />
+          {column.getIsSorted() === "asc" ? (
+            <ArrowUp className="ml-2 h-4 w-4" />
+          ) : column.getIsSorted() === "desc" ? (
+            <ArrowDown className="ml-2 h-4 w-4" />
+          ) : (
+            <ArrowUpDown className="ml-2 h-4 w-4" />
+          )}
         </Button>
       ),
       cell: ({ row }) => <div className="font-medium">{row.getValue("patient_name")}</div>,
@@ -364,7 +378,13 @@ export default function AppointmentsTable() {
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
           Clinician Name
-          <ArrowUpDown className="ml-2 h-4 w-4" />
+          {column.getIsSorted() === "asc" ? (
+            <ArrowUp className="ml-2 h-4 w-4" />
+          ) : column.getIsSorted() === "desc" ? (
+            <ArrowDown className="ml-2 h-4 w-4" />
+          ) : (
+            <ArrowUpDown className="ml-2 h-4 w-4" />
+          )}
         </Button>
       ),
       cell: ({ row }) => <div className="font-medium">{row.getValue("clinician_name")}</div>,
@@ -377,7 +397,13 @@ export default function AppointmentsTable() {
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
           Date
-          <ArrowUpDown className="ml-2 h-4 w-4" />
+          {column.getIsSorted() === "asc" ? (
+            <ArrowUp className="ml-2 h-4 w-4" />
+          ) : column.getIsSorted() === "desc" ? (
+            <ArrowDown className="ml-2 h-4 w-4" />
+          ) : (
+            <ArrowUpDown className="ml-2 h-4 w-4" />
+          )}
         </Button>
       ),
       cell: ({ row }) => (
@@ -691,6 +717,59 @@ export default function AppointmentsTable() {
       result = result.filter((appointment) =>
         appointment.payment_status.toLowerCase() === advancedSearch.payment_status?.toLowerCase()
       );
+    }
+
+    // Apply date filter
+    if (advancedSearch.date_filter && advancedSearch.date_filter !== "all_dates") {
+      const now = new Date();
+      const appointmentDate = new Date();
+      
+      result = result.filter((appointment) => {
+        appointmentDate.setTime(new Date(appointment.date).getTime());
+        
+        switch (advancedSearch.date_filter) {
+          case "today":
+            return appointmentDate.toDateString() === now.toDateString();
+          case "yesterday":
+            const yesterday = new Date(now);
+            yesterday.setDate(yesterday.getDate() - 1);
+            return appointmentDate.toDateString() === yesterday.toDateString();
+          case "past_week":
+            const weekAgo = new Date(now);
+            weekAgo.setDate(weekAgo.getDate() - 7);
+            return appointmentDate >= weekAgo;
+          case "past_month":
+            const monthAgo = new Date(now);
+            monthAgo.setMonth(monthAgo.getMonth() - 1);
+            return appointmentDate >= monthAgo;
+          case "past_3_months":
+            const threeMonthsAgo = new Date(now);
+            threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+            return appointmentDate >= threeMonthsAgo;
+          case "past_6_months":
+            const sixMonthsAgo = new Date(now);
+            sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+            return appointmentDate >= sixMonthsAgo;
+          case "past_year":
+            const yearAgo = new Date(now);
+            yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+            return appointmentDate >= yearAgo;
+          case "this_week":
+            const startOfWeek = new Date(now);
+            startOfWeek.setDate(now.getDate() - now.getDay());
+            startOfWeek.setHours(0, 0, 0, 0);
+            const endOfWeek = new Date(startOfWeek);
+            endOfWeek.setDate(startOfWeek.getDate() + 6);
+            endOfWeek.setHours(23, 59, 59, 999);
+            return appointmentDate >= startOfWeek && appointmentDate <= endOfWeek;
+          case "this_month":
+            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+            const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+            return appointmentDate >= startOfMonth && appointmentDate <= endOfMonth;
+          default:
+            return true;
+        }
+      });
     }
 
     // Apply tab filter
@@ -1204,10 +1283,30 @@ export default function AppointmentsTable() {
       <Tabs value={tab} onValueChange={setTab}>
         <div className="flex items-center">
           <TabsList>
-            <TabsTrigger value="all">All</TabsTrigger>
-            <TabsTrigger value="scheduled">Scheduled</TabsTrigger>
-            <TabsTrigger value="completed">Completed</TabsTrigger>
-            <TabsTrigger value="canceled">Canceled</TabsTrigger>
+            <TabsTrigger 
+              value="all" 
+              className="data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-gray-900 data-[state=inactive]:text-gray-600 transition-all duration-200"
+            >
+              All
+            </TabsTrigger>
+            <TabsTrigger 
+              value="scheduled" 
+              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-50 data-[state=active]:to-blue-100 data-[state=active]:text-blue-800 data-[state=active]:shadow-sm data-[state=inactive]:text-gray-600 transition-all duration-200 data-[state=active]:border-l-4 data-[state=active]:border-l-blue-500"
+            >
+              Scheduled
+            </TabsTrigger>
+            <TabsTrigger 
+              value="completed" 
+              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-50 data-[state=active]:to-green-100 data-[state=active]:text-green-800 data-[state=active]:shadow-sm data-[state=inactive]:text-gray-600 transition-all duration-200 data-[state=active]:border-l-4 data-[state=active]:border-l-green-500"
+            >
+              Completed
+            </TabsTrigger>
+            <TabsTrigger 
+              value="canceled" 
+              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-red-50 data-[state=active]:to-red-100 data-[state=active]:text-red-800 data-[state=active]:shadow-sm data-[state=inactive]:text-gray-600 transition-all duration-200 data-[state=active]:border-l-4 data-[state=active]:border-l-red-500"
+            >
+              Canceled
+            </TabsTrigger>
           </TabsList>
 
           <div className="ml-auto flex items-center gap-2">
@@ -1294,6 +1393,30 @@ export default function AppointmentsTable() {
                       <SelectItem value="Pending">Pending</SelectItem>
                       <SelectItem value="Paid">Paid</SelectItem>
                       <SelectItem value="Unpaid">Unpaid</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Select
+                    value={advancedSearch.date_filter || ""}
+                    onValueChange={(value) =>
+                      setAdvancedSearch({
+                        ...advancedSearch,
+                        date_filter: value,
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select date range" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all_dates">All Dates</SelectItem>
+                      <SelectItem value="today">Today</SelectItem>
+                      <SelectItem value="this_week">This Week</SelectItem>
+                      <SelectItem value="this_month">This Month</SelectItem>
+                      <SelectItem value="past_6_months">Past 6 Months</SelectItem>
+                      <SelectItem value="past_year">Past 1 Year</SelectItem>
+                      <SelectItem value="past_3_years">Past 3 Years</SelectItem>
+                      <SelectItem value="past_5_years">Past 5 Years</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1601,22 +1724,48 @@ export default function AppointmentsTable() {
                   </TableHeader>
                   <TableBody>
                     {table.getRowModel().rows?.length ? (
-                      table.getRowModel().rows.map((row) => (
-                        <TableRow
-                          key={row.id}
-                          data-state={row.getIsSelected() && "selected"}
-                          className="cursor-pointer hover:bg-muted/50"
-                          onClick={() =>
-                            router.push(`/Dashboard/Appointments/Appointment-View?id=${row.original.id}`)
+                      table.getRowModel().rows.map((row) => {
+                        const appointment = row.original;
+                        const getStatusGradientStyle = (status: string) => {
+                          switch (status.toLowerCase()) {
+                            case "scheduled":
+                              return {
+                                backgroundImage:
+                                  "linear-gradient(to right, #e0f2fe 0%, #f0f9ff 8%, transparent 12%, transparent 100%)",
+                              };
+                            case "completed":
+                              return {
+                                backgroundImage:
+                                  "linear-gradient(to right, #dcfce7 0%, #f0fdf4 8%, transparent 12%, transparent 100%)",
+                              };
+                            case "canceled":
+                              return {
+                                backgroundImage:
+                                  "linear-gradient(to right, #fee2e2 0%, #fef2f2 8%, transparent 12%, transparent 100%)",
+                              };
+                            default:
+                              return {};
                           }
-                        >
-                          {row.getVisibleCells().map((cell) => (
-                            <TableCell key={cell.id}>
-                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                            </TableCell>
-                          ))}
-                        </TableRow>
-                      ))
+                        };
+
+                        return (
+                          <TableRow
+                            key={row.id}
+                            data-state={row.getIsSelected() && "selected"}
+                            className="cursor-pointer hover:bg-muted/50 relative"
+                            style={getStatusGradientStyle(appointment.status)}
+                            onClick={() =>
+                              router.push(`/Dashboard/Appointments/Appointment-View?id=${row.original.id}`)
+                            }
+                          >
+                            {row.getVisibleCells().map((cell) => (
+                              <TableCell key={cell.id}>
+                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                        );
+                      })
                     ) : (
                       <TableRow>
                         <TableCell colSpan={columns.length} className="h-24 text-center">

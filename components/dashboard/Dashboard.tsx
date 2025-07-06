@@ -23,6 +23,7 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
+  Cell,
 } from "recharts";
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/lib/supabase/client";
@@ -90,6 +91,7 @@ interface ChartData {
 interface ClinicianPatientCount {
   clinicianName: string;
   numberOfPatients: number;
+  color: string;
 }
 
 // Define the shape of the appointment data
@@ -127,7 +129,7 @@ export default function Dashboard() {
   const [chartView, setChartView] = useState<"age" | "clinician">("age");
   const [activePatients, setActivePatients] = useState<number>(0);
   const [activeClinicians, setActiveClinicians] = useState<number>(0);
-  const [totalAppointments, setTotalAppointments] = useState<number>(0);
+  const [todayAppointmentsCount, setTodayAppointmentsCount] = useState<number>(0);
   const [todayAppointments, setTodayAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -177,13 +179,71 @@ export default function Dashboard() {
       if (cliniciansError) throw new Error(`Clinicians query error: ${cliniciansError.message}`);
       setActiveClinicians(cliniciansData?.length || 0);
 
-      // Fetch total appointments count
-      const { count: appointmentsCount, error: appointmentsError } = await supabase
-        .from("appointment")
-        .select("*", { count: "exact", head: true });
+      // Get today's date in UTC
+      const now = new Date();
+      const todayStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+      const todayEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1));
 
-      if (appointmentsError) throw new Error(`Appointments query error: ${appointmentsError.message}`);
-      setTotalAppointments(appointmentsCount || 0);
+      console.log('Fetching appointments between:', todayStart.toISOString(), 'and', todayEnd.toISOString());
+
+      // Fetch today's appointments count
+      const { count: todayAppointmentsCount, error: todayCountError } = await supabase
+        .from("appointment")
+        .select("*", { count: "exact", head: true })
+        .gte('date', todayStart.toISOString())
+        .lt('date', todayEnd.toISOString());
+
+      if (todayCountError) throw new Error(`Today's appointments count query error: ${todayCountError.message}`);
+      setTodayAppointmentsCount(todayAppointmentsCount || 0);
+
+      // Fetch today's appointments data
+      const { data: appointmentsData, error: todayAppointmentsError } = await supabase
+        .from("appointment")
+        .select(`
+          *,
+          patient:patient_id (
+            person (
+              first_name,
+              middle_name,
+              last_name
+            )
+          ),
+          clinician:clinician_id (
+            person (
+              first_name,
+              middle_name,
+              last_name
+            )
+          )
+        `)
+        .gte('date', todayStart.toISOString())
+        .lt('date', todayEnd.toISOString());
+
+      if (todayAppointmentsError) throw new Error(`Today's appointments query error: ${todayAppointmentsError.message}`);
+
+      console.log('Fetched appointments:', appointmentsData);
+
+      const formattedAppointments = appointmentsData?.map((appointment) => {
+        const patient = appointment.patient?.person || {};
+        const clinician = appointment.clinician?.person || {};
+        return {
+          id: appointment.id,
+          patient_id: appointment.patient_id,
+          clinician_id: appointment.clinician_id,
+          date: appointment.date,
+          service: appointment.service,
+          weight: appointment.weight,
+          vitals: appointment.vitals,
+          gestational_age: appointment.gestational_age,
+          status: appointment.status,
+          payment_status: appointment.payment_status,
+          patient_name: `${patient.first_name || ""} ${patient.middle_name || ""} ${patient.last_name || ""}`.trim(),
+          clinician_name: `${clinician.first_name || ""} ${clinician.middle_name || ""} ${clinician.last_name || ""}`.trim(),
+        };
+      }) || [];
+
+      console.log('Formatted appointments:', formattedAppointments);
+      setTodayAppointments(formattedAppointments);
 
       // Fetch patient age distribution
       const { data: ageData, error: ageError } = await supabase
@@ -233,8 +293,17 @@ export default function Dashboard() {
       if (clinicianPatientError) throw new Error(`Clinician-patient query error: ${clinicianPatientError.message}`);
       
       if (clinicianPatientData) {
+        // Define colors for clinicians
+        const clinicianColors = [
+          '#3b82f6', // Blue
+          '#10b981', // Green
+          '#8b5cf6', // Purple
+          '#f59e0b', // Orange
+          '#ec4899'  // Pink
+        ];
+
         // Process and aggregate clinician-patient data
-        const clinicianCounts = (clinicianPatientData as unknown as ClinicianWithPatients[]).map(clinician => {
+        const clinicianCounts = (clinicianPatientData as unknown as ClinicianWithPatients[]).map((clinician, index) => {
           // Use only first name
           const firstName = clinician.person.first_name;
           
@@ -243,7 +312,8 @@ export default function Dashboard() {
           
           return {
             clinicianName: firstName,
-            numberOfPatients: uniquePatients.size
+            numberOfPatients: uniquePatients.size,
+            color: clinicianColors[index % clinicianColors.length]
           };
         });
 
@@ -252,63 +322,9 @@ export default function Dashboard() {
           .sort((a, b) => b.numberOfPatients - a.numberOfPatients)
           .slice(0, 5);
 
+        console.log('Clinician data with colors:', top5Clinicians);
         setClinicianData(top5Clinicians);
       }
-
-      // Get today's date in UTC
-      const now = new Date();
-      const todayStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-      const todayEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1));
-
-      console.log('Fetching appointments between:', todayStart.toISOString(), 'and', todayEnd.toISOString());
-
-      const { data: appointmentsData, error: todayAppointmentsError } = await supabase
-        .from("appointment")
-        .select(`
-          *,
-          patient:patient_id (
-            person (
-              first_name,
-              middle_name,
-              last_name
-            )
-          ),
-          clinician:clinician_id (
-            person (
-              first_name,
-              middle_name,
-              last_name
-            )
-          )
-        `)
-        .gte('date', todayStart.toISOString())
-        .lt('date', todayEnd.toISOString());
-
-      if (todayAppointmentsError) throw new Error(`Today's appointments query error: ${todayAppointmentsError.message}`);
-
-      console.log('Fetched appointments:', appointmentsData);
-
-      const formattedAppointments = appointmentsData?.map((appointment) => {
-        const patient = appointment.patient?.person || {};
-        const clinician = appointment.clinician?.person || {};
-        return {
-          id: appointment.id,
-          patient_id: appointment.patient_id,
-          clinician_id: appointment.clinician_id,
-          date: appointment.date,
-          service: appointment.service,
-          weight: appointment.weight,
-          vitals: appointment.vitals,
-          gestational_age: appointment.gestational_age,
-          status: appointment.status,
-          payment_status: appointment.payment_status,
-          patient_name: `${patient.first_name || ""} ${patient.middle_name || ""} ${patient.last_name || ""}`.trim(),
-          clinician_name: `${clinician.first_name || ""} ${clinician.middle_name || ""} ${clinician.last_name || ""}`.trim(),
-        };
-      }) || [];
-
-      console.log('Formatted appointments:', formattedAppointments);
-      setTodayAppointments(formattedAppointments);
 
     } catch (err: any) {
       console.error("Failed to fetch dashboard data:", err);
@@ -326,7 +342,7 @@ export default function Dashboard() {
   const chartConfig = {
     numberOfPatients: {
       label: "Number of Patients:",
-      color: "black",
+      color: chartView === "age" ? "url(#blueToVioletGradient)" : "transparent",
     },
   };
 
@@ -655,7 +671,7 @@ export default function Dashboard() {
         exportFormat,
         activePatients,
         activeClinicians,
-        totalAppointments,
+        todayAppointmentsCount,
         chartData,
         clinicianData,
         appointments: todayAppointments
@@ -696,68 +712,68 @@ export default function Dashboard() {
 
   return (
     <main className="grid flex-1 gap-4 p-4 sm:px-6 sm:py-0 md:gap-8">
-      {/* Top cards (Active Patients, Active Clinicians, Total Appointments) */}
+      {/* Top cards (Active Patients, Active Clinicians, Today's Appointments) */}
       <div className="grid w-full gap-4 sm:grid-cols-2 md:grid-cols-3">
-        <Card className="@container/card">
+        <Card className="@container/card border-l-4 border-l-green-500 bg-gradient-to-r from-green-50 to-white">
           <CardHeader className="relative flex items-center">
-            <div className="rounded border-1 p-2 mr-2">
-              <Users size={20} />
+            <div className="rounded border-1 p-2 mr-2 bg-green-100">
+              <Users size={20} className="text-green-600" />
             </div>
             <div>
-              <CardDescription>Active Patients</CardDescription>
-              <CardTitle className="@[250px]/card:text-3xl text-2xl font-semibold tabular-nums">
+              <CardDescription className="text-green-700">Active Patients</CardDescription>
+              <CardTitle className="@[250px]/card:text-3xl text-2xl font-semibold tabular-nums text-green-800">
                 {loading ? "Loading..." : activePatients.toLocaleString()}
               </CardTitle>
             </div>
           </CardHeader>
           <CardFooter className="flex-col items-start gap-1 text-sm">
-            <div className="line-clamp-1 font-medium">
+            <div className="line-clamp-1 font-medium text-green-700">
               Current number of registered patients
             </div>
-            <div className="text-muted-foreground">
+            <div className="text-green-600">
               Monitor patient growth trends
             </div>
           </CardFooter>
         </Card>
-        <Card className="@container/card">
+        <Card className="@container/card border-l-4 border-l-green-500 bg-gradient-to-r from-green-50 to-white">
           <CardHeader className="relative flex items-center">
-            <div className="rounded border-1 p-2 mr-2">
-              <Stethoscope size={20} />
+            <div className="rounded border-1 p-2 mr-2 bg-green-100">
+              <Stethoscope size={20} className="text-green-600" />
             </div>
             <div>
-              <CardDescription>Active Clinicians</CardDescription>
-              <CardTitle className="@[250px]/card:text-3xl text-2xl font-semibold tabular-nums">
+              <CardDescription className="text-green-700">Active Clinicians</CardDescription>
+              <CardTitle className="@[250px]/card:text-3xl text-2xl font-semibold tabular-nums text-green-800">
                 {loading ? "Loading..." : activeClinicians.toLocaleString()}
               </CardTitle>
             </div>
           </CardHeader>
           <CardFooter className="flex-col items-start gap-1 text-sm">
-            <div className="line-clamp-1 font-medium">
+            <div className="line-clamp-1 font-medium text-green-700">
               Current number of active healthcare providers
             </div>
-            <div className="text-muted-foreground">
+            <div className="text-green-600">
               Ensure adequate staffing levels
             </div>
           </CardFooter>
         </Card>
-        <Card className="@container/card">
+        <Card className="@container/card border-l-4 border-l-blue-500 bg-gradient-to-r from-blue-50 to-white">
           <CardHeader className="relative flex items-center">
-            <div className="rounded border-1 p-2 mr-2">
-              <Calendar size={20} />
+            <div className="rounded border-1 p-2 mr-2 bg-blue-100">
+              <Calendar size={20} className="text-blue-600" />
             </div>
             <div>
-              <CardDescription>Total Appointments</CardDescription>
-              <CardTitle className="@[250px]/card:text-3xl text-2xl font-semibold tabular-nums">
-                {loading ? "Loading..." : totalAppointments.toLocaleString()}
+              <CardDescription className="text-blue-700">Today's Appointments</CardDescription>
+              <CardTitle className="@[250px]/card:text-3xl text-2xl font-semibold tabular-nums text-blue-800">
+                {loading ? "Loading..." : todayAppointmentsCount.toLocaleString()}
               </CardTitle>
             </div>
           </CardHeader>
           <CardFooter className="flex-col items-start gap-1 text-sm">
-            <div className="line-clamp-1 font-medium">
-              Total scheduled and completed appointments
+            <div className="line-clamp-1 font-medium text-blue-700">
+              Appointments scheduled for today
             </div>
-            <div className="text-muted-foreground">
-              Track appointment utilization
+            <div className="text-blue-600">
+              Track daily appointment utilization
             </div>
           </CardFooter>
         </Card>
@@ -827,7 +843,7 @@ export default function Dashboard() {
                           setExportOptions({ ...exportOptions, overview: !!checked })
                         }
                       />
-                      <Label htmlFor="overview">Overview (Active Patients, Clinicians, Total Appointments)</Label>
+                      <Label htmlFor="overview">Overview (Active Patients, Clinicians, Today's Appointments)</Label>
                     </div>
                     <div className="flex items-center space-x-2">
                       <Checkbox
@@ -898,28 +914,104 @@ export default function Dashboard() {
               </Button> */}
             </div>
           </CardHeader>
-          <div className="p-4 bg-white rounded-lg h-[400px]">
-            {loading ? (
-              <div className="text-center">Loading...</div>
-            ) : error ? (
-              <div className="text-red-500 text-center">{error}</div>
-            ) : chartView === "age" ? (
-              chartData.length === 0 ? (
-                <div className="text-center">No age distribution data available</div>
+          <div className="p-4 bg-white rounded-lg" style={{ display: 'flex', justifyContent: 'center' }}>
+            <div style={{ width: '800px', height: '400px' }}>
+              {loading ? (
+                <div className="text-center">Loading...</div>
+              ) : error ? (
+                <div className="text-red-500 text-center">{error}</div>
+              ) : chartView === "age" ? (
+                chartData.length === 0 ? (
+                  <div className="text-center">No age distribution data available</div>
+                ) : (
+                  <ChartContainer config={chartConfig}>
+                    <ResponsiveContainer width={800} height={400}>
+                      <BarChart
+                        data={chartData}
+                        margin={{ top: 20, right: 10, left: 10, bottom: 30 }}
+                        barGap={1}
+                        barCategoryGap={5}
+                      >
+                        <defs>
+                          <linearGradient id="blueToVioletGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#3b82f6" />
+                            <stop offset="100%" stopColor="#8b5cf6" />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                        <XAxis
+                          dataKey="age"
+                          label={{
+                            value: "Age",
+                            position: "insideBottom",
+                            offset: -10,
+                          }}
+                          tickMargin={5}
+                        />
+                        <YAxis
+                          dataKey="numberOfPatients"
+                          label={{
+                            value: "Number of Patients",
+                            angle: -90,
+                            position: "insideLeft",
+                            offset: 0,
+                          }}
+                          domain={[0, (dataMax: number) => Math.ceil(dataMax * 1.2)]}
+                          tickCount={5}
+                          allowDecimals={false}
+                          orientation="left"
+                        />
+                        <ChartTooltip content={<ChartTooltipContent />} />
+                        <Bar
+                          dataKey="numberOfPatients"
+                          fill="url(#blueToVioletGradient)"
+                          barSize={70}
+                          radius={[4, 4, 0, 0]}
+                          minPointSize={0}
+                          maxBarSize={50}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </ChartContainer>
+                )
+              ) : clinicianData.length === 0 ? (
+                <div className="text-center">No clinician distribution data available</div>
               ) : (
                 <ChartContainer config={chartConfig}>
-                  <ResponsiveContainer width="100%" height={150}>
+                  <ResponsiveContainer width={800} height={400}>
                     <BarChart
-                      data={chartData}
-                      margin={{ top: 0, right: 20, left: 40, bottom: 300 }}
-                      barGap={2}
-                      barCategoryGap={2}
+                      data={clinicianData}
+                      margin={{ top: 20, right: 10, left: 10, bottom: 30 }}
+                      barGap={1}
+                      barCategoryGap={5}
                     >
+                      <defs>
+                        <linearGradient id="clinicianBlueGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#3b82f6" />
+                          <stop offset="100%" stopColor="#1d4ed8" />
+                        </linearGradient>
+                        <linearGradient id="clinicianGreenGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#10b981" />
+                          <stop offset="100%" stopColor="#059669" />
+                        </linearGradient>
+                        <linearGradient id="clinicianPurpleGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#8b5cf6" />
+                          <stop offset="100%" stopColor="#7c3aed" />
+                        </linearGradient>
+                        <linearGradient id="clinicianOrangeGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#f59e0b" />
+                          <stop offset="100%" stopColor="#d97706" />
+                        </linearGradient>
+                        <linearGradient id="clinicianPinkGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#ec4899" />
+                          <stop offset="100%" stopColor="#db2777" />
+                        </linearGradient>
+                      </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                       <XAxis
-                        dataKey="age"
+                        dataKey="clinicianName"
                         label={{
-                          value: "Age",
+                          value: "Clinician",
                           position: "insideBottom",
                           offset: -10,
                         }}
@@ -939,65 +1031,23 @@ export default function Dashboard() {
                         orientation="left"
                       />
                       <ChartTooltip content={<ChartTooltipContent />} />
-                      <Bar
-                        dataKey="numberOfPatients"
-                        fill="black"
-                        barSize={70}
-                        radius={[4, 4, 0, 0]}
-                        minPointSize={0}
-                        maxBarSize={50}
-                      />
+                                              <Bar
+                          dataKey="numberOfPatients"
+                          barSize={70}
+                          radius={[4, 4, 0, 0]}
+                          minPointSize={0}
+                          maxBarSize={50}
+                        >
+                          {clinicianData.map((entry, index) => {
+                            console.log(`Rendering cell ${index} with color:`, entry.color);
+                            return <Cell key={`cell-${index}`} fill={entry.color} />;
+                          })}
+                        </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 </ChartContainer>
-              )
-            ) : clinicianData.length === 0 ? (
-              <div className="text-center">No clinician distribution data available</div>
-            ) : (
-              <ChartContainer config={chartConfig}>
-                <ResponsiveContainer width="100%" height={150}>
-                  <BarChart
-                    data={clinicianData}
-                    margin={{ top: 0, right: 20, left: 40, bottom: 300 }}
-                    barGap={2}
-                    barCategoryGap={2}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis
-                      dataKey="clinicianName"
-                      label={{
-                        value: "Clinician",
-                        position: "insideBottom",
-                        offset: -10,
-                      }}
-                      tickMargin={5}
-                    />
-                    <YAxis
-                      dataKey="numberOfPatients"
-                      label={{
-                        value: "Number of Patients",
-                        angle: -90,
-                        position: "insideLeft",
-                        offset: 0,
-                      }}
-                      domain={[0, (dataMax: number) => Math.ceil(dataMax * 1.2)]}
-                      tickCount={5}
-                      allowDecimals={false}
-                      orientation="left"
-                    />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Bar
-                      dataKey="numberOfPatients"
-                      fill="black"
-                      barSize={70}
-                      radius={[4, 4, 0, 0]}
-                      minPointSize={0}
-                      maxBarSize={50}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </ChartContainer>
-            )}
+              )}
+            </div>
           </div>
         </Card>
 
@@ -1006,10 +1056,30 @@ export default function Dashboard() {
           <Tabs value={tab} onValueChange={setTab} className="mt-8">
             <div className="flex items-center">
               <TabsList>
-                <TabsTrigger value="all">All</TabsTrigger>
-                <TabsTrigger value="scheduled">Scheduled</TabsTrigger>
-                <TabsTrigger value="completed">Completed</TabsTrigger>
-                <TabsTrigger value="canceled">Canceled</TabsTrigger>
+                <TabsTrigger 
+                  value="all" 
+                  className="data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-gray-900 data-[state=inactive]:text-gray-600 transition-all duration-200"
+                >
+                  All
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="scheduled" 
+                  className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-50 data-[state=active]:to-blue-100 data-[state=active]:text-blue-800 data-[state=active]:shadow-sm data-[state=inactive]:text-gray-600 transition-all duration-200 data-[state=active]:border-l-4 data-[state=active]:border-l-blue-500"
+                >
+                  Scheduled
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="completed" 
+                  className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-50 data-[state=active]:to-green-100 data-[state=active]:text-green-800 data-[state=active]:shadow-sm data-[state=inactive]:text-gray-600 transition-all duration-200 data-[state=active]:border-l-4 data-[state=active]:border-l-green-500"
+                >
+                  Completed
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="canceled" 
+                  className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-red-50 data-[state=active]:to-red-100 data-[state=active]:text-red-800 data-[state=active]:shadow-sm data-[state=inactive]:text-gray-600 transition-all duration-200 data-[state=active]:border-l-4 data-[state=active]:border-l-red-500"
+                >
+                  Canceled
+                </TabsTrigger>
               </TabsList>
 
               <div className="ml-auto flex items-center gap-2">

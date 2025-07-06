@@ -12,6 +12,8 @@ import {
     ChevronDownIcon,
     TextSearch,
     ArrowUpDown,
+    ArrowUp,
+    ArrowDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -123,7 +125,13 @@ const columns: ColumnDef<Clinician>[] = [
                 onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
             >
                 Name
-                <ArrowUpDown className="ml-2 h-4 w-4" />
+                {column.getIsSorted() === "asc" ? (
+                    <ArrowUp className="ml-2 h-4 w-4" />
+                ) : column.getIsSorted() === "desc" ? (
+                    <ArrowDown className="ml-2 h-4 w-4" />
+                ) : (
+                    <ArrowUpDown className="ml-2 h-4 w-4" />
+                )}
             </Button>
         ),
         cell: ({ row }) => <div className="font-medium">{row.getValue("name")}</div>,
@@ -209,7 +217,13 @@ const columns: ColumnDef<Clinician>[] = [
                 className="hidden sm:flex"
             >
                 Last Appointment
-                <ArrowUpDown className="ml-2 h-4 w-4" />
+                {column.getIsSorted() === "asc" ? (
+                    <ArrowUp className="ml-2 h-4 w-4" />
+                ) : column.getIsSorted() === "desc" ? (
+                    <ArrowDown className="ml-2 h-4 w-4" />
+                ) : (
+                    <ArrowUpDown className="ml-2 h-4 w-4" />
+                )}
             </Button>
         ),
         cell: ({ row }) => (
@@ -225,7 +239,13 @@ const columns: ColumnDef<Clinician>[] = [
                 className="hidden md:flex"
             >
                 Age
-                <ArrowUpDown className="ml-2 h-4 w-4" />
+                {column.getIsSorted() === "asc" ? (
+                    <ArrowUp className="ml-2 h-4 w-4" />
+                ) : column.getIsSorted() === "desc" ? (
+                    <ArrowDown className="ml-2 h-4 w-4" />
+                ) : (
+                    <ArrowUpDown className="ml-2 h-4 w-4" />
+                )}
             </Button>
         ),
         cell: ({ row }) => <div className="hidden md:block">{row.getValue("age") || "-"}</div>,
@@ -247,7 +267,13 @@ const columns: ColumnDef<Clinician>[] = [
                 className="hidden md:flex"
             >
                 Home Address
-                <ArrowUpDown className="ml-2 h-4 w-4" />
+                {column.getIsSorted() === "asc" ? (
+                    <ArrowUp className="ml-2 h-4 w-4" />
+                ) : column.getIsSorted() === "desc" ? (
+                    <ArrowDown className="ml-2 h-4 w-4" />
+                ) : (
+                    <ArrowUpDown className="ml-2 h-4 w-4" />
+                )}
             </Button>
         ),
         cell: ({ row }) => (
@@ -937,9 +963,24 @@ export default function CliniciansTable() {
                 <div className="flex items-center">
                     <div className="flex items-center gap-2">
                         <TabsList>
-                            <TabsTrigger value="all">All</TabsTrigger>
-                            <TabsTrigger value="active">Active</TabsTrigger>
-                            <TabsTrigger value="inactive">Inactive</TabsTrigger>
+                            <TabsTrigger 
+                                value="all" 
+                                className="data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-gray-900 data-[state=inactive]:text-gray-600 transition-all duration-200"
+                            >
+                                All
+                            </TabsTrigger>
+                            <TabsTrigger 
+                                value="active" 
+                                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-50 data-[state=active]:to-green-100 data-[state=active]:text-green-800 data-[state=active]:shadow-sm data-[state=inactive]:text-gray-600 transition-all duration-200 data-[state=active]:border-l-4 data-[state=active]:border-l-green-500"
+                            >
+                                Active
+                            </TabsTrigger>
+                            <TabsTrigger 
+                                value="inactive" 
+                                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-red-50 data-[state=active]:to-red-100 data-[state=active]:text-red-800 data-[state=active]:shadow-sm data-[state=inactive]:text-gray-600 transition-all duration-200 data-[state=active]:border-l-4 data-[state=active]:border-l-red-500"
+                            >
+                                Inactive
+                            </TabsTrigger>
                         </TabsList>
 
                         <Tabs value={roleFilter} onValueChange={setRoleFilter}>
@@ -1367,23 +1408,42 @@ export default function CliniciansTable() {
                                     </TableHeader>
                                     <TableBody>
                                         {table.getRowModel().rows?.length ? (
-                                            table.getRowModel().rows.map((row) => (
-                                                <TableRow
-                                                    key={row.id}
-                                                    data-state={row.getIsSelected() && "selected"}
-                                                    onClick={() => router.push(`/Dashboard/Clinicians/Clinician-View?id=${row.original.id}`)}
-                                                    className="cursor-pointer hover:bg-zinc-100"
-                                                >
-                                                    {row.getVisibleCells().map((cell) => (
-                                                        <TableCell key={cell.id}>
-                                                            {flexRender(
-                                                                cell.column.columnDef.cell,
-                                                                cell.getContext()
-                                                            )}
-                                                        </TableCell>
-                                                    ))}
-                                                </TableRow>
-                                            ))
+                                            table.getRowModel().rows.map((row) => {
+                                                const status = row.original.status?.toLowerCase();
+                                                const getStatusGradientStyle = (status: string) => {
+                                                    if (status === "active") {
+                                                        return {
+                                                            backgroundImage:
+                                                                "linear-gradient(to right, #dcfce7 0%, #f0fdf4 8%, transparent 12%, transparent 100%)",
+                                                        };
+                                                    } else if (status === "inactive") {
+                                                        return {
+                                                            backgroundImage:
+                                                                "linear-gradient(to right, #fee2e2 0%, #fef2f2 8%, transparent 12%, transparent 100%)",
+                                                        };
+                                                    } else {
+                                                        return {};
+                                                    }
+                                                };
+                                                return (
+                                                    <TableRow
+                                                        key={row.id}
+                                                        data-state={row.getIsSelected() && "selected"}
+                                                        onClick={() => router.push(`/Dashboard/Clinicians/Clinician-View?id=${row.original.id}`)}
+                                                        className="cursor-pointer hover:bg-zinc-100"
+                                                        style={getStatusGradientStyle(status)}
+                                                    >
+                                                        {row.getVisibleCells().map((cell) => (
+                                                            <TableCell key={cell.id}>
+                                                                {flexRender(
+                                                                    cell.column.columnDef.cell,
+                                                                    cell.getContext()
+                                                                )}
+                                                            </TableCell>
+                                                        ))}
+                                                    </TableRow>
+                                                );
+                                            })
                                         ) : (
                                             <TableRow>
                                                 <TableCell colSpan={columns.length} className="h-24 text-center">
