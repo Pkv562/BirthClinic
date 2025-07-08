@@ -1683,9 +1683,9 @@ function formatTimeSinglePill(timeStr: string) {
   if (displayHour === 0) displayHour = 12;
   let suffix = (displayHour === 12 && ampm === "PM") ? "NN" : ampm;
   return (
-    <span className="inline-flex items-center rounded-lg bg-black px-3 py-0.5 text-base font-semibold text-white shadow-sm">
+    <span className="inline-flex items-center rounded-lg bg-black px-2 py-0.5 text-xs font-semibold text-white shadow-sm">
       {displayHour}:{minute.toString().padStart(2, '0')}
-      <span className="ml-1 font-semibold text-yellow-300">{suffix}</span>
+      <span className="ml-1 font-semibold text-yellow-300 text-xs">{suffix}</span>
     </span>
   );
 }
