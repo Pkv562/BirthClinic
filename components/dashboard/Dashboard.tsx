@@ -1123,7 +1123,7 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <div className="p-4 bg-white rounded-lg" style={{ display: 'flex', justifyContent: 'center' }}>
-              <div style={{ width: '100%', maxWidth: '800px', height: '400px' }}>
+              <div style={{ width: '100%', maxWidth: '500px', height: '250px' }}>
                 {loading ? (
                   <div className="text-center">Loading...</div>
                 ) : error ? (
@@ -1133,12 +1133,12 @@ export default function Dashboard() {
                     <div className="text-center">No age distribution data available</div>
                   ) : (
                     <ChartContainer config={chartConfig}>
-                      <ResponsiveContainer width={800} height={400}>
+                      <ResponsiveContainer width={500} height={250}>
                         <BarChart
                           data={chartData}
                           margin={{ top: 20, right: 10, left: 10, bottom: 30 }}
-                          barGap={1}
-                          barCategoryGap={5}
+                          barGap={0}
+                          barCategoryGap={0}
                         >
                           <defs>
                             <linearGradient id="blueToVioletGradient" x1="0" y1="0" x2="0" y2="1">
@@ -1186,12 +1186,12 @@ export default function Dashboard() {
                   <div className="text-center">No clinician distribution data available</div>
                 ) : (
                   <ChartContainer config={chartConfig}>
-                    <ResponsiveContainer width={800} height={400}>
+                    <ResponsiveContainer width={500} height={250}>
                       <BarChart
                         data={clinicianData}
                         margin={{ top: 20, right: 10, left: 10, bottom: 30 }}
-                        barGap={1}
-                        barCategoryGap={5}
+                        barGap={0}
+                        barCategoryGap={2}
                       >
                         <defs>
                           <linearGradient id="clinicianBlueGradient" x1="0" y1="0" x2="0" y2="1">
@@ -1239,22 +1239,22 @@ export default function Dashboard() {
                           orientation="left"
                         />
                         <ChartTooltip content={<ChartTooltipContent />} />
-                                              <Bar
+                        <Bar
                           dataKey="numberOfPatients"
-                          barSize={70}
+                          barSize={24}
                           radius={[4, 4, 0, 0]}
                           minPointSize={0}
-                          maxBarSize={50}
+                          maxBarSize={30}
                         >
                           {clinicianData.map((entry, index) => {
                             console.log(`Rendering cell ${index} with color:`, entry.color);
                             return <Cell key={`cell-${index}`} fill={entry.color} />;
                           })}
                         </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </ChartContainer>
-              )}
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </ChartContainer>
+                )}
             </div>
           </div>
         </Card>
