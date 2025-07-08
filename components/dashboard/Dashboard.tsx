@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, Search, TextSearch, ChevronDownIcon, ArrowUpDown, UserRoundPlus, Eye } from "lucide-react";
+import { Download, Search, TextSearch, ChevronDownIcon, ArrowUpDown, UserRoundPlus, Eye, MoreHorizontal, MoreVertical, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -45,7 +45,8 @@ import {
   DropdownMenuContent,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuTrigger
+  DropdownMenuTrigger,
+  DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
@@ -80,6 +81,10 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import React from "react";
+import { DatePicker } from "@/components/ui/date-picker";
+import { TimePicker12Demo } from "@/components/dashboard/appointments/TimePicker12Demo";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 // Define the shape of the chart data
 interface ChartData {
@@ -122,6 +127,16 @@ interface ClinicianWithPatients {
   appointments: { patient_id: string }[];
 }
 
+// Add interface for schedule
+interface ClinicianSchedule {
+  id: number;
+  clinician_id: number;
+  date: string;
+  start_time: string;
+  end_time: string;
+  clinician_name?: string;
+}
+
 export default function Dashboard() {
   const router = useRouter();
   const [chartData, setChartData] = useState<ChartData[]>([]);
@@ -153,6 +168,60 @@ export default function Dashboard() {
   });
   const [exportFormat, setExportFormat] = useState("pdf");
 
+  const { isAdmin } = useIsAdmin();
+  const { userData } = useCurrentUser();
+
+  // State for schedule panel
+  const [clinicians, setClinicians] = useState<{ id: number; name: string }[]>([]);
+  const [selectedClinician, setSelectedClinician] = useState<number | null>(null);
+  const [scheduleDate, setScheduleDate] = useState<Date | undefined>(new Date());
+  const [startTime, setStartTime] = useState<Date | undefined>(undefined);
+  const [endTime, setEndTime] = useState<Date | undefined>(undefined);
+  const [schedules, setSchedules] = useState<ClinicianSchedule[]>([]);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
+  const [scheduleSuccess, setScheduleSuccess] = useState<string | null>(null);
+  const [showScheduleForm, setShowScheduleForm] = useState(false);
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const [editingSchedule, setEditingSchedule] = useState<ClinicianSchedule | null>(null);
+  const [deletingSchedule, setDeletingSchedule] = useState<ClinicianSchedule | null>(null);
+  const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null);
+  const [statusUpdatingValue, setStatusUpdatingValue] = useState<string>("");
+
+  // Add new state for mapping clinician_id to name
+  const [clinicianIdToName, setClinicianIdToName] = useState<{ [key: number]: string }>({});
+
+  // Add fetchSchedules as a function for reuse
+  const fetchSchedules = async (clinicianId = selectedClinician, dateObj = scheduleDate) => {
+    console.log('Fetching schedules for:', { clinicianId, date: dateObj });
+    toast.info(`Fetching schedules for clinician ${clinicianId} on ${dateObj ? dateObj.toISOString().split('T')[0] : 'N/A'}`);
+    if (!clinicianId || !dateObj) {
+      setSchedules([]);
+      return;
+    }
+    setScheduleLoading(true);
+    setScheduleError(null);
+    const dateStr = dateObj.toISOString().split('T')[0];
+    // In fetchSchedules, remove the clinician_id filter so it fetches all schedules for the selected date
+    const { data, error } = await supabase
+      .from('clinician_schedule')
+      .select('*')
+      .eq('date', dateStr);
+    if (error) {
+      setScheduleError('Failed to fetch schedules');
+      setSchedules([]);
+      toast.error('Failed to fetch schedules');
+    } else {
+      // Sort by start_time
+      const sorted = (data || []).sort((a: any, b: any) => a.start_time.localeCompare(b.start_time));
+      setSchedules(sorted);
+      if (!sorted.length) {
+        toast.info('No schedules found for this clinician and date.');
+      }
+    }
+    setScheduleLoading(false);
+  };
+
   // Fetch data from Supabase
   const fetchDashboardData = async () => {
     try {
@@ -169,29 +238,25 @@ export default function Dashboard() {
       if (patientsError) throw new Error(`Patients query error: ${patientsError.message}`);
       setActivePatients(patientsData?.length || 0);
 
-      // Fetch active clinicians
-      const { data: cliniciansData, error: cliniciansError } = await supabase
-        .from("person")
-        .select("id")
-        .eq("status", "Active")
-        .in("id", (await supabase.from("clinicians").select("id")).data?.map(c => c.id) || []);
-
-      if (cliniciansError) throw new Error(`Clinicians query error: ${cliniciansError.message}`);
-      setActiveClinicians(cliniciansData?.length || 0);
-
       // Get today's date in UTC
       const now = new Date();
-      const todayStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-      const todayEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1));
+      const todayStr = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())).toISOString().split('T')[0];
 
-      console.log('Fetching appointments between:', todayStart.toISOString(), 'and', todayEnd.toISOString());
+      // Fetch all schedules for today
+      const { data: todaySchedules, error: todaySchedulesError } = await supabase
+        .from('clinician_schedule')
+        .select('clinician_id')
+        .eq('date', todayStr);
+      if (todaySchedulesError) throw new Error(`Today's schedules query error: ${todaySchedulesError.message}`);
+      const uniqueClinicianIds = Array.from(new Set((todaySchedules || []).map(s => s.clinician_id)));
+      setActiveClinicians(uniqueClinicianIds.length);
 
       // Fetch today's appointments count
       const { count: todayAppointmentsCount, error: todayCountError } = await supabase
         .from("appointment")
         .select("*", { count: "exact", head: true })
-        .gte('date', todayStart.toISOString())
-        .lt('date', todayEnd.toISOString());
+        .gte('date', todayStr)
+        .lt('date', new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1)).toISOString());
 
       if (todayCountError) throw new Error(`Today's appointments count query error: ${todayCountError.message}`);
       setTodayAppointmentsCount(todayAppointmentsCount || 0);
@@ -216,8 +281,8 @@ export default function Dashboard() {
             )
           )
         `)
-        .gte('date', todayStart.toISOString())
-        .lt('date', todayEnd.toISOString());
+        .gte('date', todayStr)
+        .lt('date', new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1)).toISOString());
 
       if (todayAppointmentsError) throw new Error(`Today's appointments query error: ${todayAppointmentsError.message}`);
 
@@ -257,22 +322,10 @@ export default function Dashboard() {
         setChartData([]);
         setError("No patient data found");
       } else {
-        // Aggregate age data
-        const ageCounts = ageData.reduce((acc: { [key: string]: number }, row) => {
-          const age = row.age.toString();
-          acc[age] = (acc[age] || 0) + 1;
-          return acc;
-        }, {});
-
-        // Convert to chart data format and sort
-        const formattedData = Object.entries(ageCounts)
-          .map(([age, count]) => ({
-            age,
-            numberOfPatients: count,
-          }))
-          .sort((a, b) => a.age.localeCompare(b.age, undefined, { numeric: true }));
-
-        setChartData(formattedData);
+        // --- Use age range bucketing ---
+        const ages = ageData.map((row: any) => Number(row.age)).filter((a) => !isNaN(a));
+        const buckets = bucketAges(ages, 10);
+        setChartData(buckets.map((b) => ({ age: b.range, numberOfPatients: b.count })));
       }
 
       // Fetch clinician-patient distribution
@@ -337,6 +390,159 @@ export default function Dashboard() {
   useEffect(() => {
     fetchDashboardData();
   }, []);
+
+  // Fetch clinicians for dropdown
+  useEffect(() => {
+    async function fetchClinicians() {
+      const { data, error } = await supabase
+        .from('clinicians')
+        .select('id, role, person(id, first_name, middle_name, last_name)');
+      if (error) return;
+      setClinicians(
+        (data || []).map((c: any) => ({
+          id: c.person.id,
+          name: `${c.role === 'Doctor' ? 'Dr. ' : ''}${c.person.first_name} ${c.person.middle_name || ''} ${c.person.last_name || ''}`.replace(/  +/g, ' ').trim(),
+          role: c.role,
+        }))
+      );
+      // Build the mapping with only first and last name, no Dr. prefix
+      const mapping: { [key: number]: string } = {};
+      (data || []).forEach((c: any) => {
+        mapping[c.person.id] = `${c.person.first_name} ${c.person.last_name}`.replace(/  +/g, ' ').trim();
+      });
+      setClinicianIdToName(mapping);
+    }
+    fetchClinicians();
+  }, []);
+
+  // On mount, set default clinician and date if not set, and always fetch schedules
+  useEffect(() => {
+    if (!selectedClinician && clinicians.length > 0) {
+      setSelectedClinician(clinicians[0].id);
+    }
+    if (!scheduleDate) {
+      setScheduleDate(new Date());
+    }
+    if ((selectedClinician || clinicians.length > 0) && (scheduleDate || true)) {
+      fetchSchedules(selectedClinician || clinicians[0]?.id, scheduleDate || new Date());
+    }
+    // eslint-disable-next-line
+  }, [clinicians]);
+
+  useEffect(() => {
+    if (selectedClinician && scheduleDate) {
+      fetchSchedules(selectedClinician, scheduleDate);
+    }
+    // eslint-disable-next-line
+  }, [selectedClinician, scheduleDate]);
+
+  // Conflict prevention helper
+  function hasScheduleConflict(newStart: Date, newEnd: Date, date: string, clinicianId: number, excludeId?: number) {
+    return schedules.some(s =>
+      s.clinician_id === clinicianId &&
+      s.date === date &&
+      (excludeId === undefined || s.id !== excludeId) &&
+      ((newStart < new Date(`${s.date}T${s.end_time}`) && newEnd > new Date(`${s.date}T${s.start_time}`)))
+    );
+  }
+
+  // Handle schedule create/edit
+  async function handleSaveSchedule(editing: boolean = false) {
+    setScheduleLoading(true);
+    setScheduleError(null);
+    setScheduleSuccess(null);
+    // Use current values or defaults
+    const clinicianId = selectedClinician || (clinicians[0]?.id ?? null);
+    const dateObj = scheduleDate || new Date();
+    const dateStr = dateObj.toISOString().split('T')[0];
+    const start = setTimeOnDate(dateObj, startTime || new Date(0, 0, 0, 8, 0, 0, 0));
+    const end = setTimeOnDate(dateObj, endTime || new Date(0, 0, 0, 17, 0, 0, 0));
+    const startStr = start.toTimeString().slice(0, 8);
+    const endStr = end.toTimeString().slice(0, 8);
+    if (!clinicianId || !dateObj || !start || !end) {
+      toast.error('All fields are required');
+      setScheduleLoading(false);
+      return;
+    }
+    // Time validation
+    if (end <= start) {
+      toast.error('End time must be after start time.');
+      setScheduleLoading(false);
+      return;
+    }
+    // Conflict check
+    if (hasScheduleConflict(start, end, dateStr, clinicianId, editingSchedule?.id)) {
+      toast.error('Schedule conflict: This clinician already has a schedule that overlaps with the selected time.');
+      setScheduleLoading(false);
+      return;
+    }
+    if (editing) {
+      // Update
+      const { error } = await supabase.from('clinician_schedule').update({
+        clinician_id: clinicianId,
+        date: dateStr,
+        start_time: startStr,
+        end_time: endStr,
+      }).eq('id', editingSchedule?.id);
+      if (error) {
+        toast.error('Failed to update schedule');
+      } else {
+        toast.success('Schedule updated');
+        setEditingSchedule(null);
+        setScheduleDialogOpen(false);
+        fetchSchedules(selectedClinician, scheduleDate);
+      }
+    } else {
+      // Create
+      const { error } = await supabase.from('clinician_schedule').insert([
+        {
+          clinician_id: clinicianId,
+          date: dateStr,
+          start_time: startStr,
+          end_time: endStr,
+        },
+      ]);
+      if (error) {
+        toast.error('Failed to save schedule');
+      } else {
+        toast.success('Schedule saved');
+        setScheduleDialogOpen(false);
+        fetchSchedules(selectedClinician, scheduleDate);
+      }
+    }
+    setScheduleLoading(false);
+  }
+
+  async function handleDeleteSchedule(scheduleId: number) {
+    setScheduleLoading(true);
+    const { error } = await supabase.from('clinician_schedule').delete().eq('id', scheduleId);
+    if (error) {
+      toast.error('Failed to delete schedule');
+    } else {
+      toast.success('Schedule deleted');
+      setDeletingSchedule(null);
+      fetchSchedules(selectedClinician, scheduleDate);
+    }
+    setScheduleLoading(false);
+  }
+
+  // --- Age Range Bucketing ---
+  function bucketAges(ages: number[], bucketSize = 10) {
+    if (ages.length === 0) return [];
+    const min = Math.min(...ages);
+    const max = Math.max(...ages);
+    const buckets: { range: string; count: number }[] = [];
+    for (let start = Math.floor(min / bucketSize) * bucketSize; start <= max; start += bucketSize) {
+      const end = start + bucketSize - 1;
+      buckets.push({ range: `${start}–${end}`, count: 0 });
+    }
+    const firstStart = Math.floor(min / bucketSize) * bucketSize;
+    ages.forEach((age) => {
+      const idx = Math.floor((age - firstStart) / bucketSize);
+      if (buckets[idx]) buckets[idx].count++;
+    });
+    return buckets.filter((b) => b.count > 0);
+  }
 
   // Chart configuration for styling
   const chartConfig = {
@@ -781,168 +987,239 @@ export default function Dashboard() {
 
       {/* Chart and Appointments stacked vertically */}
       <div className="w-full space-y-4">
-        {/* Patient Distribution Analysis Card */}
-        <Card className="@container/card rounded-lg border border-gray-200 relative z-0">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle>Patient Distribution Analysis</CardTitle>
-              <CardDescription>
-                {chartView === "age" ? "Distribution of patients by age" : "Top 5 clinicians by patient count"}
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Select
-                value={chartView}
-                onValueChange={(value: "age" | "clinician") => setChartView(value)}
-              >
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Select view" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="age">Age Distribution</SelectItem>
-                  <SelectItem value="clinician">Clinician Distribution</SelectItem>
-                </SelectContent>
-              </Select>
+        {/* Patient Distribution Analysis Card + Clinician Schedule Panel */}
+        <div className="flex flex-col md:flex-row gap-4">
+          {/* Chart Card - 65% width */}
+          <Card className="w-full md:w-[65%] flex-shrink-0 rounded-lg border border-gray-200 relative z-0">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Patient Distribution Analysis</CardTitle>
+                <CardDescription>
+                  {chartView === "age" ? "Distribution of patients by age range" : "Top 5 clinicians by patient count"}
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <Select
+                  value={chartView}
+                  onValueChange={(value: "age" | "clinician") => setChartView(value)}
+                >
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Select view" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="age">Age Distribution</SelectItem>
+                    <SelectItem value="clinician">Clinician Distribution</SelectItem>
+                  </SelectContent>
+                </Select>
 
-              <Dialog open={openExportDialog} onOpenChange={setOpenExportDialog}>
-                <DialogTrigger asChild>
-                  <Button size="sm" variant="outline" className="h-8 flex items-center gap-1">
-                    <Download className="h-4 w-4" />
-                    <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">Export</span>
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Export Dashboard Data</DialogTitle>
-                    <DialogDescription>
-                      Select the data to include in the export and choose the format.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="selectAll"
-                        checked={Object.values(exportOptions).every(Boolean)}
-                        onCheckedChange={(checked) => {
-                          setExportOptions({
-                            overview: !!checked,
-                            ageDistribution: !!checked,
-                            clinicianDistribution: !!checked,
-                            appointments: !!checked
-                          });
-                        }}
-                      />
-                      <Label htmlFor="selectAll" className="font-semibold">Select All</Label>
-                    </div>
-                    <div className="h-px bg-border" />
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="overview"
-                        checked={exportOptions.overview}
-                        onCheckedChange={(checked) =>
-                          setExportOptions({ ...exportOptions, overview: !!checked })
-                        }
-                      />
-                      <Label htmlFor="overview">Overview (Active Patients, Clinicians, Today's Appointments)</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="ageDistribution"
-                        checked={exportOptions.ageDistribution}
-                        onCheckedChange={(checked) =>
-                          setExportOptions({ ...exportOptions, ageDistribution: !!checked })
-                        }
-                      />
-                      <Label htmlFor="ageDistribution">Age Distribution</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="clinicianDistribution"
-                        checked={exportOptions.clinicianDistribution}
-                        onCheckedChange={(checked) =>
-                          setExportOptions({ ...exportOptions, clinicianDistribution: !!checked })
-                        }
-                      />
-                      <Label htmlFor="clinicianDistribution">Clinician Distribution</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="appointments"
-                        checked={exportOptions.appointments}
-                        onCheckedChange={(checked) =>
-                          setExportOptions({ ...exportOptions, appointments: !!checked })
-                        }
-                      />
-                      <Label htmlFor="appointments">Today's Appointments</Label>
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="format" className="text-right">
-                        Format
-                      </Label>
-                      <Select value={exportFormat} onValueChange={setExportFormat}>
-                        <SelectTrigger className="col-span-3">
-                          <SelectValue placeholder="Select format" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="pdf">PDF</SelectItem>
-                          <SelectItem value="csv">CSV</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <DialogClose asChild>
-                      <Button variant="outline">Cancel</Button>
-                    </DialogClose>
-                    <Button onClick={handleExport} disabled={isExporting}>
-                      {isExporting ? "Exporting..." : "Export"}
+                <Dialog open={openExportDialog} onOpenChange={setOpenExportDialog}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" variant="outline" className="h-8 flex items-center gap-1">
+                      <Download className="h-4 w-4" />
+                      <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">Export</span>
                     </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Export Dashboard Data</DialogTitle>
+                      <DialogDescription>
+                        Select the data to include in the export and choose the format.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="selectAll"
+                          checked={Object.values(exportOptions).every(Boolean)}
+                          onCheckedChange={(checked) => {
+                            setExportOptions({
+                              overview: !!checked,
+                              ageDistribution: !!checked,
+                              clinicianDistribution: !!checked,
+                              appointments: !!checked
+                            });
+                          }}
+                        />
+                        <Label htmlFor="selectAll" className="font-semibold">Select All</Label>
+                      </div>
+                      <div className="h-px bg-border" />
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="overview"
+                          checked={exportOptions.overview}
+                          onCheckedChange={(checked) =>
+                            setExportOptions({ ...exportOptions, overview: !!checked })
+                          }
+                        />
+                        <Label htmlFor="overview">Overview (Active Patients, Clinicians, Today's Appointments)</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="ageDistribution"
+                          checked={exportOptions.ageDistribution}
+                          onCheckedChange={(checked) =>
+                            setExportOptions({ ...exportOptions, ageDistribution: !!checked })
+                          }
+                        />
+                        <Label htmlFor="ageDistribution">Age Distribution</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="clinicianDistribution"
+                          checked={exportOptions.clinicianDistribution}
+                          onCheckedChange={(checked) =>
+                            setExportOptions({ ...exportOptions, clinicianDistribution: !!checked })
+                          }
+                        />
+                        <Label htmlFor="clinicianDistribution">Clinician Distribution</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="appointments"
+                          checked={exportOptions.appointments}
+                          onCheckedChange={(checked) =>
+                            setExportOptions({ ...exportOptions, appointments: !!checked })
+                          }
+                        />
+                        <Label htmlFor="appointments">Today's Appointments</Label>
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="format" className="text-right">
+                          Format
+                        </Label>
+                        <Select value={exportFormat} onValueChange={setExportFormat}>
+                          <SelectTrigger className="col-span-3">
+                            <SelectValue placeholder="Select format" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pdf">PDF</SelectItem>
+                            <SelectItem value="csv">CSV</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <DialogClose asChild>
+                        <Button variant="outline">Cancel</Button>
+                      </DialogClose>
+                      <Button onClick={handleExport} disabled={isExporting}>
+                        {isExporting ? "Exporting..." : "Export"}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
 
-              {/* <Button
-                size="sm"
-                variant="outline"
-                className="h-8 flex items-center gap-1"
-                onClick={() => router.push("/Patients/Patient-Form")}
-              >
-                <Download />
-                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                  Export
-                </span>
-              </Button> */}
-            </div>
-          </CardHeader>
-          <div className="p-4 bg-white rounded-lg" style={{ display: 'flex', justifyContent: 'center' }}>
-            <div style={{ width: '800px', height: '400px' }}>
-              {loading ? (
-                <div className="text-center">Loading...</div>
-              ) : error ? (
-                <div className="text-red-500 text-center">{error}</div>
-              ) : chartView === "age" ? (
-                chartData.length === 0 ? (
-                  <div className="text-center">No age distribution data available</div>
+                {/* <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 flex items-center gap-1"
+                  onClick={() => router.push("/Patients/Patient-Form")}
+                >
+                  <Download />
+                  <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                    Export
+                  </span>
+                </Button> */}
+              </div>
+            </CardHeader>
+            <div className="p-4 bg-white rounded-lg" style={{ display: 'flex', justifyContent: 'center' }}>
+              <div style={{ width: '100%', maxWidth: '800px', height: '400px' }}>
+                {loading ? (
+                  <div className="text-center">Loading...</div>
+                ) : error ? (
+                  <div className="text-red-500 text-center">{error}</div>
+                ) : chartView === "age" ? (
+                  chartData.length === 0 ? (
+                    <div className="text-center">No age distribution data available</div>
+                  ) : (
+                    <ChartContainer config={chartConfig}>
+                      <ResponsiveContainer width={800} height={400}>
+                        <BarChart
+                          data={chartData}
+                          margin={{ top: 20, right: 10, left: 10, bottom: 30 }}
+                          barGap={1}
+                          barCategoryGap={5}
+                        >
+                          <defs>
+                            <linearGradient id="blueToVioletGradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#3b82f6" />
+                              <stop offset="100%" stopColor="#8b5cf6" />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                          <XAxis
+                            dataKey="age"
+                            label={{
+                              value: "Age Range",
+                              position: "insideBottom",
+                              offset: -10,
+                            }}
+                            tickMargin={5}
+                          />
+                          <YAxis
+                            dataKey="numberOfPatients"
+                            label={{
+                              value: "Number of Patients",
+                              angle: -90,
+                              position: "insideLeft",
+                              offset: 0,
+                            }}
+                            domain={[0, (dataMax: number) => Math.ceil(dataMax * 1.2)]}
+                            tickCount={5}
+                            allowDecimals={false}
+                            orientation="left"
+                          />
+                          <ChartTooltip content={<ChartTooltipContent />} />
+                          <Bar
+                            dataKey="numberOfPatients"
+                            fill="url(#blueToVioletGradient)"
+                            barSize={70}
+                            radius={[4, 4, 0, 0]}
+                            minPointSize={0}
+                            maxBarSize={50}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </ChartContainer>
+                  )
+                ) : clinicianData.length === 0 ? (
+                  <div className="text-center">No clinician distribution data available</div>
                 ) : (
                   <ChartContainer config={chartConfig}>
                     <ResponsiveContainer width={800} height={400}>
                       <BarChart
-                        data={chartData}
+                        data={clinicianData}
                         margin={{ top: 20, right: 10, left: 10, bottom: 30 }}
                         barGap={1}
                         barCategoryGap={5}
                       >
                         <defs>
-                          <linearGradient id="blueToVioletGradient" x1="0" y1="0" x2="0" y2="1">
+                          <linearGradient id="clinicianBlueGradient" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor="#3b82f6" />
-                            <stop offset="100%" stopColor="#8b5cf6" />
+                            <stop offset="100%" stopColor="#1d4ed8" />
+                          </linearGradient>
+                          <linearGradient id="clinicianGreenGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#10b981" />
+                            <stop offset="100%" stopColor="#059669" />
+                          </linearGradient>
+                          <linearGradient id="clinicianPurpleGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#8b5cf6" />
+                            <stop offset="100%" stopColor="#7c3aed" />
+                          </linearGradient>
+                          <linearGradient id="clinicianOrangeGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#f59e0b" />
+                            <stop offset="100%" stopColor="#d97706" />
+                          </linearGradient>
+                          <linearGradient id="clinicianPinkGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#ec4899" />
+                            <stop offset="100%" stopColor="#db2777" />
                           </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                         <XAxis
-                          dataKey="age"
+                          dataKey="clinicianName"
                           label={{
-                            value: "Age",
+                            value: "Clinician",
                             position: "insideBottom",
                             offset: -10,
                           }}
@@ -962,75 +1239,6 @@ export default function Dashboard() {
                           orientation="left"
                         />
                         <ChartTooltip content={<ChartTooltipContent />} />
-                        <Bar
-                          dataKey="numberOfPatients"
-                          fill="url(#blueToVioletGradient)"
-                          barSize={70}
-                          radius={[4, 4, 0, 0]}
-                          minPointSize={0}
-                          maxBarSize={50}
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </ChartContainer>
-                )
-              ) : clinicianData.length === 0 ? (
-                <div className="text-center">No clinician distribution data available</div>
-              ) : (
-                <ChartContainer config={chartConfig}>
-                  <ResponsiveContainer width={800} height={400}>
-                    <BarChart
-                      data={clinicianData}
-                      margin={{ top: 20, right: 10, left: 10, bottom: 30 }}
-                      barGap={1}
-                      barCategoryGap={5}
-                    >
-                      <defs>
-                        <linearGradient id="clinicianBlueGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#3b82f6" />
-                          <stop offset="100%" stopColor="#1d4ed8" />
-                        </linearGradient>
-                        <linearGradient id="clinicianGreenGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#10b981" />
-                          <stop offset="100%" stopColor="#059669" />
-                        </linearGradient>
-                        <linearGradient id="clinicianPurpleGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#8b5cf6" />
-                          <stop offset="100%" stopColor="#7c3aed" />
-                        </linearGradient>
-                        <linearGradient id="clinicianOrangeGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#f59e0b" />
-                          <stop offset="100%" stopColor="#d97706" />
-                        </linearGradient>
-                        <linearGradient id="clinicianPinkGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#ec4899" />
-                          <stop offset="100%" stopColor="#db2777" />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis
-                        dataKey="clinicianName"
-                        label={{
-                          value: "Clinician",
-                          position: "insideBottom",
-                          offset: -10,
-                        }}
-                        tickMargin={5}
-                      />
-                      <YAxis
-                        dataKey="numberOfPatients"
-                        label={{
-                          value: "Number of Patients",
-                          angle: -90,
-                          position: "insideLeft",
-                          offset: 0,
-                        }}
-                        domain={[0, (dataMax: number) => Math.ceil(dataMax * 1.2)]}
-                        tickCount={5}
-                        allowDecimals={false}
-                        orientation="left"
-                      />
-                      <ChartTooltip content={<ChartTooltipContent />} />
                                               <Bar
                           dataKey="numberOfPatients"
                           barSize={70}
@@ -1050,6 +1258,141 @@ export default function Dashboard() {
             </div>
           </div>
         </Card>
+        {/* Clinician Schedule Panel - 35% width */}
+        <Card className="w-full md:w-[35%] flex-shrink-0 border border-gray-200">
+          <Dialog open={scheduleDialogOpen} onOpenChange={setScheduleDialogOpen}>
+            <CardHeader className="flex flex-row items-center justify-between gap-1">
+              <div className="flex-1">
+                <CardTitle>Clinician Schedule</CardTitle>
+              </div>
+              {/* Date picker for filtering schedules by date, right-aligned */}
+              <div className="flex flex-row items-center gap-1">
+                <DatePicker value={scheduleDate} onChange={setScheduleDate} triggerClassName="w-auto min-w-0 px-2" />
+                {isAdmin && schedules.length > 0 && (
+                  <DialogTrigger asChild>
+                    <Button size="icon" variant="default" className="bg-black text-white hover:bg-black ml-1" onClick={() => { setEditingSchedule(null); setScheduleDialogOpen(true); }}>
+                      <Plus className="w-5 h-5" />
+                    </Button>
+                  </DialogTrigger>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Schedules List */}
+              {schedules.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-48 relative">
+                  {isAdmin && (
+                    <DialogTrigger asChild>
+                      <Button variant="default" className="bg-black text-white hover:bg-black px-6 py-2 text-base" onClick={() => { setEditingSchedule(null); setScheduleDialogOpen(true); }}>
+                        Create Schedule
+                      </Button>
+                    </DialogTrigger>
+                  )}
+                  <div className="text-muted-foreground text-sm mt-4">No schedules found.</div>
+                </div>
+              ) : (
+                <ul className="divide-y divide-gray-200 mb-2">
+                  {schedules.map((s) => (
+                    <li key={s.id} className="py-2 flex flex-col">
+                      <div className="flex items-center justify-between gap-2">
+                        {/* Only show first and last name */}
+                        <span className="font-medium flex-1 truncate">{clinicianIdToName[s.clinician_id] || `Clinician #${s.clinician_id}`}</span>
+                        <div className="flex items-center gap-2">
+                          {/* Time range as a single pill for each time, AM/PM/NN colored inside */}
+                          <div className="flex items-center gap-2">
+                            {formatTimeSinglePill(s.start_time)}
+                            <span className="mx-1 text-lg font-bold text-black">-</span>
+                            {formatTimeSinglePill(s.end_time)}
+                          </div>
+                          {isAdmin && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-6 w-6 p-0"><MoreVertical /></Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => { setEditingSchedule(s); setScheduleDialogOpen(true); }}>Edit</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setDeletingSchedule(s)}>Delete</DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {/* Schedule Dialog (Create/Edit) */}
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>{editingSchedule ? 'Edit Schedule' : 'Create Clinician Schedule'}</DialogTitle>
+                  <DialogDescription>Set the details for the schedule entry.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3">
+                  <div>
+                    <Label>Clinician</Label>
+                    <Select
+                      value={selectedClinician ? String(selectedClinician) : editingSchedule ? String(editingSchedule.clinician_id) : ""}
+                      onValueChange={(val) => setSelectedClinician(Number(val))}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select clinician" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {clinicians.map((c) => (
+                          <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Date</Label>
+                    <DatePicker value={scheduleDate || (editingSchedule ? new Date(editingSchedule.date) : new Date())} onChange={setScheduleDate} triggerClassName="w-full" />
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <Label>Start Time</Label>
+                      <TimePicker12Demo date={startTime || (editingSchedule ? new Date(`${editingSchedule.date}T${editingSchedule.start_time}`) : undefined)} setDate={setStartTime} />
+                    </div>
+                    <div className="flex-1">
+                      <Label>End Time</Label>
+                      <TimePicker12Demo date={endTime || (editingSchedule ? new Date(`${editingSchedule.date}T${editingSchedule.end_time}`) : undefined)} setDate={setEndTime} />
+                    </div>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button variant="outline" disabled={scheduleLoading} onClick={() => { setEditingSchedule(null); setScheduleDialogOpen(false); }}>
+                      Cancel
+                    </Button>
+                  </DialogClose>
+                  <Button onClick={() => handleSaveSchedule(!!editingSchedule)} disabled={scheduleLoading}>
+                    {scheduleLoading ? 'Saving...' : (editingSchedule ? 'Update' : 'Save')}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+              {/* Delete Confirmation Dialog */}
+              <Dialog open={!!deletingSchedule} onOpenChange={(open) => { if (!open) setDeletingSchedule(null); }}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Delete Schedule</DialogTitle>
+                    <DialogDescription>Are you sure you want to delete this schedule?</DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter>
+                    <DialogClose asChild>
+                      <Button variant="outline" onClick={() => setDeletingSchedule(null)}>
+                        Cancel
+                      </Button>
+                    </DialogClose>
+                    <Button variant="destructive" onClick={() => handleDeleteSchedule(deletingSchedule?.id!)}>
+                      Delete
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </CardContent>
+          </Dialog>
+        </Card>
+      </div>
 
         {/* Appointments Today Card - Add z-index to ensure it's above the chart */}
         <div className="relative z-10">
@@ -1291,4 +1634,65 @@ export default function Dashboard() {
       />
     </main>
   );
+}
+
+function formatTime12Hour(timeStr: string) {
+  if (!timeStr) return '';
+  let [h, m] = timeStr.split(":");
+  let hour = parseInt(h, 10);
+  let minute = parseInt(m, 10);
+  let ampm = hour >= 12 ? "PM" : "AM";
+  let displayHour = hour % 12;
+  if (displayHour === 0) displayHour = 12;
+  let suffix = (displayHour === 12 && ampm === "PM") ? "NN" : ampm;
+  return `${displayHour}:${minute.toString().padStart(2, '0')} ${suffix}`;
+}
+
+// Helper for time pills: returns two pill boxes for time and period
+function formatTimePills(timeStr: string) {
+  if (!timeStr) return '';
+  let [h, m] = timeStr.split(":");
+  let hour = parseInt(h, 10);
+  let minute = parseInt(m, 10);
+  let ampm = hour >= 12 ? "PM" : "AM";
+  let displayHour = hour % 12;
+  if (displayHour === 0) displayHour = 12;
+  let suffix = (displayHour === 12 && ampm === "PM") ? "NN" : ampm;
+  return <>
+    <span className="inline-flex items-center rounded-lg bg-black px-2 py-0.5 text-base font-semibold text-white shadow-sm">{displayHour}:{minute.toString().padStart(2, '0')}</span>
+    <span className="inline-flex items-center rounded-lg bg-yellow-400 px-2 py-0.5 text-base font-semibold text-black shadow-sm ml-1">{suffix}</span>
+  </>;
+}
+
+// Helper to get first and last name from full name string
+function getFirstAndLastName(fullName: string) {
+  if (!fullName) return '';
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0];
+  return `${parts[0]} ${parts[parts.length - 1]}`;
+}
+
+// Helper for time pill: single pill with AM/PM/NN colored inside
+function formatTimeSinglePill(timeStr: string) {
+  if (!timeStr) return '';
+  let [h, m] = timeStr.split(":");
+  let hour = parseInt(h, 10);
+  let minute = parseInt(m, 10);
+  let ampm = hour >= 12 ? "PM" : "AM";
+  let displayHour = hour % 12;
+  if (displayHour === 0) displayHour = 12;
+  let suffix = (displayHour === 12 && ampm === "PM") ? "NN" : ampm;
+  return (
+    <span className="inline-flex items-center rounded-lg bg-black px-3 py-0.5 text-base font-semibold text-white shadow-sm">
+      {displayHour}:{minute.toString().padStart(2, '0')}
+      <span className="ml-1 font-semibold text-yellow-300">{suffix}</span>
+    </span>
+  );
+}
+
+// Add helper function
+function setTimeOnDate(date: Date, time: Date) {
+  const d = new Date(date);
+  d.setHours(time.getHours(), time.getMinutes(), 0, 0);
+  return d;
 }

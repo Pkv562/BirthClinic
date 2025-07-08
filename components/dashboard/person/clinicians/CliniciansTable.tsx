@@ -1411,19 +1411,7 @@ export default function CliniciansTable() {
                                             table.getRowModel().rows.map((row) => {
                                                 const status = row.original.status?.toLowerCase();
                                                 const getStatusGradientStyle = (status: string) => {
-                                                    if (status === "active") {
-                                                        return {
-                                                            backgroundImage:
-                                                                "linear-gradient(to right, #dcfce7 0%, #f0fdf4 8%, transparent 12%, transparent 100%)",
-                                                        };
-                                                    } else if (status === "inactive") {
-                                                        return {
-                                                            backgroundImage:
-                                                                "linear-gradient(to right, #fee2e2 0%, #fef2f2 8%, transparent 12%, transparent 100%)",
-                                                        };
-                                                    } else {
-                                                        return {};
-                                                    }
+                                                    return {};
                                                 };
                                                 return (
                                                     <TableRow
@@ -1457,7 +1445,7 @@ export default function CliniciansTable() {
                         </CardContent>
                         <CardFooter className="flex items-center justify-between">
                             <div className="text-xs text-muted-foreground">
-                                Showing <strong>{table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1}-{Math.min((table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize, filteredClinicians.length)}</strong> of{" "}
+                                Showing <strong>{table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1}-{Math.min((table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize, filteredClinicians.length)}</strong> of {" "}
                                 <strong>{clinicians.length}</strong> clinicians
                             </div>
                             <div className="flex items-center space-x-2">
@@ -1469,6 +1457,12 @@ export default function CliniciansTable() {
                                 >
                                     Previous
                                 </Button>
+                                <div className="flex items-center gap-1">
+                                    <div className="text-xs text-muted-foreground">Page</div>
+                                    <strong className="text-sm">
+                                        {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
+                                    </strong>
+                                </div>
                                 <Button
                                     variant="outline"
                                     size="sm"
@@ -1477,6 +1471,23 @@ export default function CliniciansTable() {
                                 >
                                     Next
                                 </Button>
+                                <Select
+                                    value={`${table.getState().pagination.pageSize}`}
+                                    onValueChange={(value) => {
+                                        table.setPageSize(Number(value));
+                                    }}
+                                >
+                                    <SelectTrigger className="h-8 w-[70px]">
+                                        <SelectValue placeholder={table.getState().pagination.pageSize} />
+                                    </SelectTrigger>
+                                    <SelectContent side="top">
+                                        {[10, 20, 30, 40, 50].map((pageSize) => (
+                                            <SelectItem key={pageSize} value={`${pageSize}`}>
+                                                {pageSize}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
                         </CardFooter>
                     </Card>

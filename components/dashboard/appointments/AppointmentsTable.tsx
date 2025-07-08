@@ -1727,25 +1727,7 @@ export default function AppointmentsTable() {
                       table.getRowModel().rows.map((row) => {
                         const appointment = row.original;
                         const getStatusGradientStyle = (status: string) => {
-                          switch (status.toLowerCase()) {
-                            case "scheduled":
-                              return {
-                                backgroundImage:
-                                  "linear-gradient(to right, #e0f2fe 0%, #f0f9ff 8%, transparent 12%, transparent 100%)",
-                              };
-                            case "completed":
-                              return {
-                                backgroundImage:
-                                  "linear-gradient(to right, #dcfce7 0%, #f0fdf4 8%, transparent 12%, transparent 100%)",
-                              };
-                            case "canceled":
-                              return {
-                                backgroundImage:
-                                  "linear-gradient(to right, #fee2e2 0%, #fef2f2 8%, transparent 12%, transparent 100%)",
-                              };
-                            default:
-                              return {};
-                          }
+                          return {};
                         };
 
                         return (
