@@ -989,8 +989,8 @@ export default function Dashboard() {
       <div className="w-full space-y-4">
         {/* Patient Distribution Analysis Card + Clinician Schedule Panel */}
         <div className="flex flex-col md:flex-row gap-4">
-          {/* Chart Card - 65% width */}
-          <Card className="w-full md:w-[65%] flex-shrink-0 rounded-lg border border-gray-200 relative z-0">
+          {/* Chart Card - 55% width */}
+          <Card className="w-full md:w-[62%] flex-shrink-0 rounded-lg border border-gray-200 relative z-0">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle>Patient Distribution Analysis</CardTitle>
@@ -1258,8 +1258,8 @@ export default function Dashboard() {
             </div>
           </div>
         </Card>
-        {/* Clinician Schedule Panel - 35% width */}
-        <Card className="w-full md:w-[35%] flex-shrink-0 border border-gray-200">
+        {/* Clinician Schedule Panel - 45% width */}
+        <Card className="w-full md:w-[38%] flex-shrink-0 border border-gray-200">
           <Dialog open={scheduleDialogOpen} onOpenChange={setScheduleDialogOpen}>
             <CardHeader className="flex flex-row items-center justify-between gap-1">
               <div className="flex-1">
@@ -1294,28 +1294,30 @@ export default function Dashboard() {
                 <ul className="divide-y divide-gray-200 mb-2">
                   {schedules.map((s) => (
                     <li key={s.id} className="py-2 flex flex-col">
-                      <div className="flex items-center justify-between gap-2">
-                        {/* Only show first and last name */}
-                        <span className="font-medium flex-1 truncate">{clinicianIdToName[s.clinician_id] || `Clinician #${s.clinician_id}`}</span>
-                        <div className="flex items-center gap-2">
-                          {/* Time range as a single pill for each time, AM/PM/NN colored inside */}
-                          <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        {/* Name box: allow wrapping and flexible width */}
+                        <div className="inline-flex items-center rounded-lg bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700 border border-blue-200 w-auto min-w-0 max-w-xs break-words whitespace-normal">
+                          {clinicianIdToName[s.clinician_id] || `Clinician #${s.clinician_id}`}
+                        </div>
+                        <div className="flex items-center gap-2 w-auto min-w-0">
+                          {/* Time range box: allow flexible width */}
+                          <div className="inline-flex items-center rounded-lg bg-gray-100 px-3 py-1 text-sm font-medium text-gray-700 border border-gray-200 w-auto min-w-0 max-w-xs break-words whitespace-normal">
                             {formatTimeSinglePill(s.start_time)}
-                            <span className="mx-1 text-lg font-bold text-black">-</span>
+                            <span className="mx-2 text-gray-500">-</span>
                             {formatTimeSinglePill(s.end_time)}
                           </div>
-                          {isAdmin && (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-6 w-6 p-0"><MoreVertical /></Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => { setEditingSchedule(s); setScheduleDialogOpen(true); }}>Edit</DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setDeletingSchedule(s)}>Delete</DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          )}
                         </div>
+                        {isAdmin && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-6 w-6 p-0"><MoreVertical /></Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => { setEditingSchedule(s); setScheduleDialogOpen(true); }}>Edit</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setDeletingSchedule(s)}>Delete</DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
                       </div>
                     </li>
                   ))}
@@ -1672,7 +1674,7 @@ function getFirstAndLastName(fullName: string) {
   return `${parts[0]} ${parts[parts.length - 1]}`;
 }
 
-// Helper for time pill: single pill with AM/PM/NN colored inside
+// Helper for time display: plain text format
 function formatTimeSinglePill(timeStr: string) {
   if (!timeStr) return '';
   let [h, m] = timeStr.split(":");
@@ -1682,12 +1684,7 @@ function formatTimeSinglePill(timeStr: string) {
   let displayHour = hour % 12;
   if (displayHour === 0) displayHour = 12;
   let suffix = (displayHour === 12 && ampm === "PM") ? "NN" : ampm;
-  return (
-    <span className="inline-flex items-center rounded-lg bg-black px-2 py-0.5 text-xs font-semibold text-white shadow-sm">
-      {displayHour}:{minute.toString().padStart(2, '0')}
-      <span className="ml-1 font-semibold text-yellow-300 text-xs">{suffix}</span>
-    </span>
-  );
+  return `${displayHour}:${minute.toString().padStart(2, '0')} ${suffix}`;
 }
 
 // Add helper function
