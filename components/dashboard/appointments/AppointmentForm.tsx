@@ -17,8 +17,8 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 const appointmentFormSchema = z.object({
   patient_id: z.coerce.string().min(1, "Patient is required"),
   clinician_id: z.coerce.string().min(1, "Clinician is required"),
-  date: z.string().min(1, "A valid date is required"), // Changed to string
-  service: z.string().min(1, "Service is required"),
+  date: z.string().min(1, "A valid date is required"),
+  service: z.array(z.string()).min(1, "At least one service is required"),
 });
 
 interface Person {
@@ -56,7 +56,17 @@ export default function AppointmentForm({ open, onOpenChange, onSuccess, default
   const [clinicians, setClinicians] = React.useState<Person[]>([]);
   const { userData } = useCurrentUser();
 
-  const services = ["Prenatal Care", "Postpartum Care", "Consultation", "Ultrasound", "Lab Test"];
+  const services = [
+    "Prenatal Care",
+    "Postpartum Care",
+    "Consultation",
+    "Ultrasound",
+    "Lab Test",
+    "Family Planning",
+    "Vaccination",
+    "Newborn Screening",
+    "Gynecology Consultation"
+  ];
 
   const form = useForm<AppointmentFormValues>({
     resolver: zodResolver(appointmentFormSchema),
@@ -64,7 +74,7 @@ export default function AppointmentForm({ open, onOpenChange, onSuccess, default
       patient_id: defaultPatientId || "",
       clinician_id: defaultClinicianId || "",
       date: new Date().toISOString().split("T")[0],
-      service: "",
+      service: [],
     },
   });
 
@@ -82,7 +92,7 @@ export default function AppointmentForm({ open, onOpenChange, onSuccess, default
         patient_id: defaultPatientId || "",
         clinician_id: defaultClinicianId || "",
         date: new Date().toISOString().split("T")[0],
-        service: "",
+        service: [],
       });
       const fetchData = async () => {
         try {
@@ -203,16 +213,11 @@ export default function AppointmentForm({ open, onOpenChange, onSuccess, default
   const onSubmit = async (data: AppointmentFormValues) => {
     try {
       setIsSubmitting(true);
-
-      // Convert string date to Date object for Supabase
       const appointmentDate = new Date(data.date);
       if (isNaN(appointmentDate.getTime())) {
         throw new Error("Invalid date provided");
       }
-
-      // Set the time to noon (12:00:00) in the local timezone to avoid timezone issues
       appointmentDate.setHours(12, 0, 0, 0);
-
       const { data: existingAppointment, error: checkError } = await supabase
         .from("appointment")
         .select("id")
@@ -220,38 +225,31 @@ export default function AppointmentForm({ open, onOpenChange, onSuccess, default
         .eq("clinician_id", data.clinician_id)
         .eq("date", appointmentDate.toISOString())
         .single();
-
       if (checkError && checkError.code !== "PGRST116") {
         throw new Error("Error checking for existing appointment");
       }
-
       if (existingAppointment) {
         throw new Error("An appointment already exists for this patient, clinician, and date.");
       }
-
       const newAppointment = {
         patient_id: data.patient_id,
         clinician_id: data.clinician_id,
         date: appointmentDate.toISOString(),
-        service: data.service,
+        service: data.service, // now an array
         status: "Scheduled",
         payment_status: "Unpaid",
       };
-
       const { error } = await supabase.from("appointment").insert([newAppointment]);
-
       if (error) throw error;
-
       const patient = patients.find((p) => p.id === data.patient_id);
       toast.success("Appointment created successfully", {
         description: `Appointment for ${patient?.first_name} ${patient?.last_name} on ${appointmentDate.toLocaleDateString()}`,
       });
-
       form.reset({
         patient_id: "",
         clinician_id: "",
         date: new Date().toISOString().split("T")[0],
-        service: "",
+        service: [],
       });
       onOpenChange(false);
       onSuccess?.();
@@ -355,23 +353,35 @@ export default function AppointmentForm({ open, onOpenChange, onSuccess, default
                   </FormItem>
                 )}
               />
+            </div>
 
+            {/* Service checkboxes in a new row, 3 per row */}
+            <div className="w-full">
               <FormField
                 control={form.control}
                 name="service"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Service</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger className={inputClass}>
-                        <SelectValue placeholder="Select service" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {services.map((s) => (
-                          <SelectItem key={s} value={s}>{s}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="grid grid-cols-3 gap-2">
+                      {services.map((s) => (
+                        <label key={s} className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            value={s}
+                            checked={field.value.includes(s)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                field.onChange([...field.value, s]);
+                              } else {
+                                field.onChange(field.value.filter((v: string) => v !== s));
+                              }
+                            }}
+                          />
+                          {s}
+                        </label>
+                      ))}
+                    </div>
                     <FormMessage />
                   </FormItem>
                 )}

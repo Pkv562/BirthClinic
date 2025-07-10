@@ -1002,13 +1002,13 @@ export default function PatientsTable() {
                         </TabsTrigger>
                         <TabsTrigger 
                             value="active" 
-                            className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-50 data-[state=active]:to-green-100 data-[state=active]:text-green-800 data-[state=active]:shadow-sm data-[state=inactive]:text-gray-600 transition-all duration-200 data-[state=active]:border-l-4 data-[state=active]:border-l-green-500"
+                            className="data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-gray-900 data-[state=inactive]:text-gray-600 transition-all duration-200"
                         >
                             Active
                         </TabsTrigger>
                         <TabsTrigger 
                             value="inactive" 
-                            className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-red-50 data-[state=active]:to-red-100 data-[state=active]:text-red-800 data-[state=active]:shadow-sm data-[state=inactive]:text-gray-600 transition-all duration-200 data-[state=active]:border-l-4 data-[state=active]:border-l-red-500"
+                            className="data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-gray-900 data-[state=inactive]:text-gray-600 transition-all duration-200"
                         >
                             Inactive
                         </TabsTrigger>

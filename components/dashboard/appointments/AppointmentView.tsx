@@ -69,7 +69,7 @@ interface Appointment {
   patient_id: string;
   clinician_id: string;
   date: string;
-  service: string;
+  service: string[];
   weight: string | null;
   vitals: string | null;
   gestational_age: string | null;
@@ -149,7 +149,7 @@ export default function AppointmentView() {
 
     async function fetchAppointment() {
       try {
-        const { data: appointmentData, error: appointmentError } = await supabase
+        const { data: appointmentData, error: appointmentError }: { data: any, error: any } = await supabase
           .from("appointment")
           .select(`
             *,
@@ -198,6 +198,11 @@ export default function AppointmentView() {
         // Transform the data
         const transformedData = {
           ...appointmentData,
+          service: Array.isArray(appointmentData.service)
+            ? appointmentData.service
+            : typeof appointmentData.service === 'string'
+              ? (appointmentData.service as string).split(',').map((s: string) => s.trim()).filter(Boolean)
+              : [],
           patient: appointmentData.patients ? {
             id: appointmentData.patients.person.id,
             person: appointmentData.patients.person
@@ -517,7 +522,22 @@ export default function AppointmentView() {
                 </div>
                 <div>
                   <Label className="font-semibold mb-2">Service</Label>
-                  <p className="text-m">{appointment.service || "Not specified"}</p>
+                  <p className="text-m">
+                    {appointment.service.length <= 1
+                      ? appointment.service[0] || 'Not specified'
+                      : (
+                        <Select defaultValue={appointment.service[0]}>
+                          <SelectTrigger className="w-[180px]">
+                            <SelectValue>{appointment.service[0]}</SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {appointment.service.map((s, idx) => (
+                              <SelectItem key={idx} value={s}>{s}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                  </p>
                 </div>
                 <div>
                   <Label className="font-semibold mb-2">Payment Status</Label>
@@ -991,7 +1011,7 @@ export default function AppointmentView() {
             patient_id: appointment?.patient_id || "",
             clinician_id: appointment?.clinician_id || "",
             date: appointment?.date || new Date().toISOString(),
-            service: appointment?.service || "",
+            service: Array.isArray(appointment?.service) ? appointment.service.join(", ") : (appointment?.service || ""),
             status: appointment?.status || "",
             payment_status: appointment?.payment_status || "",
             patient: appointment?.patient ? {

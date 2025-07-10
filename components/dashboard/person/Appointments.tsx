@@ -19,6 +19,7 @@ import {
     DialogHeader,
     DialogTitle,
     DialogTrigger,
+    DialogClose,
 } from "@/components/ui/dialog";
 import {
     Select,
@@ -43,6 +44,8 @@ import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { debounce } from "lodash";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { isSameDay, isSameWeek, isSameMonth, isSameYear, subMonths, subYears, parse } from "date-fns";
+import { Label } from "@/components/ui/label";
+import { DatePicker } from "@/components/ui/date-picker";
 
 type Props = {
     context: "patient" | "clinician";
@@ -68,6 +71,14 @@ export default function Appointments({ context, id, refreshTrigger = 0 }: Props)
     const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
     const { isAdmin } = useIsAdmin();
     const [loading, setLoading] = useState(true);
+    const [advancedFilterOpen, setAdvancedFilterOpen] = useState(false);
+    const [tempStatus, setTempStatus] = useState(statusFilter);
+    const [tempPaymentStatus, setTempPaymentStatus] = useState(paymentStatusFilter);
+    const [tempDateRange, setTempDateRange] = useState(dateRange);
+    const [tempCustomStartDate, setTempCustomStartDate] = useState<Date | undefined>(undefined);
+    const [tempCustomEndDate, setTempCustomEndDate] = useState<Date | undefined>(undefined);
+    const [customStartDate, setCustomStartDate] = useState<Date | undefined>(undefined);
+    const [customEndDate, setCustomEndDate] = useState<Date | undefined>(undefined);
 
     const dateRangeOptions = [
         { value: "all", label: "All Time" },
@@ -169,29 +180,42 @@ export default function Appointments({ context, id, refreshTrigger = 0 }: Props)
             appointment.service.toLowerCase().includes(searchTerm.toLowerCase());
         
         const matchesStatus = statusFilter === "all" || appointment.status.toLowerCase() === statusFilter.toLowerCase();
-        
+
         // Date range filter
         const now = new Date();
         const apptDate = new Date(appointment.date);
-        const matchesDateRange = (() => {
-            if (dateRange === "all") return true;
+        let matchesDateRange = true;
+        if (customStartDate || customEndDate) {
+            const start = customStartDate ? new Date(customStartDate).setHours(0, 0, 0, 0) : -Infinity;
+            const end = customEndDate ? new Date(customEndDate).setHours(23, 59, 59, 999) : Infinity;
+            matchesDateRange = apptDate.getTime() >= start && apptDate.getTime() <= end;
+        } else {
             switch (dateRange) {
+                case "all":
+                    matchesDateRange = true;
+                    break;
                 case "day":
-                    return isSameDay(apptDate, now);
+                    matchesDateRange = isSameDay(apptDate, now);
+                    break;
                 case "week":
-                    return isSameWeek(apptDate, now, { weekStartsOn: 1 });
+                    matchesDateRange = isSameWeek(apptDate, now, { weekStartsOn: 1 });
+                    break;
                 case "month":
-                    return isSameMonth(apptDate, now);
+                    matchesDateRange = isSameMonth(apptDate, now);
+                    break;
                 case "6months":
-                    return apptDate >= subMonths(now, 6);
+                    matchesDateRange = apptDate >= subMonths(now, 6);
+                    break;
                 case "year":
-                    return isSameYear(apptDate, now);
+                    matchesDateRange = isSameYear(apptDate, now);
+                    break;
                 case "5years":
-                    return apptDate >= subYears(now, 5);
+                    matchesDateRange = apptDate >= subYears(now, 5);
+                    break;
                 default:
-                    return true;
+                    matchesDateRange = true;
             }
-        })();
+        }
 
         const matchesPaymentStatus = paymentStatusFilter === "all" || 
             appointment.payment_status.toLowerCase() === paymentStatusFilter.toLowerCase();
@@ -386,17 +410,111 @@ export default function Appointments({ context, id, refreshTrigger = 0 }: Props)
                                 </SelectContent>
                             </Select>
                         </div>
+                        {/* Remove the old date range dropdown and add Advanced Filter button */}
                         <div className="flex-none w-[180px]">
-                            <Select value={dateRange} onValueChange={setDateRange}>
-                                <SelectTrigger className="w-full">
-                                    <SelectValue placeholder="Filter by date range" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {dateRangeOptions.map(opt => (
-                                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <Button variant="outline" className="w-full" onClick={() => setAdvancedFilterOpen(true)}>
+                                Advanced Filter
+                            </Button>
+                            <Dialog open={advancedFilterOpen} onOpenChange={setAdvancedFilterOpen}>
+                                <DialogContent className="sm:max-w-[600px]">
+                                    <DialogHeader>
+                                        <DialogTitle>Advanced Filter</DialogTitle>
+                                    </DialogHeader>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
+                                        <div className="space-y-2">
+                                            <Label>Status</Label>
+                                            <Select value={tempStatus} onValueChange={setTempStatus}>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select status" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="all">All Status</SelectItem>
+                                                    <SelectItem value="scheduled">Scheduled</SelectItem>
+                                                    <SelectItem value="completed">Completed</SelectItem>
+                                                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Payment Status</Label>
+                                            <Select value={tempPaymentStatus} onValueChange={setTempPaymentStatus}>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select payment status" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="all">All Payment Statuses</SelectItem>
+                                                    <SelectItem value="pending">Pending</SelectItem>
+                                                    <SelectItem value="paid">Paid</SelectItem>
+                                                    <SelectItem value="unpaid">Unpaid</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Date Range</Label>
+                                            <Select
+                                                value={tempDateRange}
+                                                onValueChange={setTempDateRange}
+                                                disabled={!!tempCustomStartDate || !!tempCustomEndDate}
+                                            >
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select date range" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {dateRangeOptions.map(opt => (
+                                                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="flex flex-col sm:flex-row gap-4 col-span-1 sm:col-span-2">
+                                            <div className="flex-1 space-y-2">
+                                                <Label>Start Date</Label>
+                                                <DatePicker
+                                                    value={tempCustomStartDate ?? undefined}
+                                                    onChange={setTempCustomStartDate}
+                                                />
+                                            </div>
+                                            <div className="flex-1 space-y-2">
+                                                <Label>End Date</Label>
+                                                <DatePicker
+                                                    value={tempCustomEndDate ?? undefined}
+                                                    onChange={setTempCustomEndDate}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <DialogFooter>
+                                        <DialogClose asChild>
+                                            <Button
+                                                variant="outline"
+                                                onClick={() => {
+                                                    setTempStatus("all");
+                                                    setTempPaymentStatus("all");
+                                                    setTempDateRange("all");
+                                                    setTempCustomStartDate(undefined);
+                                                    setTempCustomEndDate(undefined);
+                                                }}
+                                            >
+                                                Clear
+                                            </Button>
+                                        </DialogClose>
+                                        <DialogClose asChild>
+                                            <Button
+                                                onClick={() => {
+                                                    setStatusFilter(tempStatus);
+                                                    setPaymentStatusFilter(tempPaymentStatus);
+                                                    setDateRange(tempDateRange);
+                                                    // Custom date range is not part of original state, so store in local state
+                                                    setCustomStartDate(tempCustomStartDate);
+                                                    setCustomEndDate(tempCustomEndDate);
+                                                }}
+                                            >
+                                                Apply
+                                            </Button>
+                                        </DialogClose>
+                                    </DialogFooter>
+                                </DialogContent>
+                            </Dialog>
                         </div>
                     </div>
                 </div>
@@ -444,7 +562,31 @@ export default function Appointments({ context, id, refreshTrigger = 0 }: Props)
                                             : appointment.clinician_name}
                                     </TableCell>
                                     <TableCell>{appointment.date}</TableCell>
-                                    <TableCell>{appointment.service}</TableCell>
+                                    <TableCell>
+  {(() => {
+    let services: string[] = [];
+    if (Array.isArray(appointment.service)) {
+      services = appointment.service;
+    } else if (typeof appointment.service === 'string') {
+      services = appointment.service.split(',').map(s => s.trim()).filter(Boolean);
+    }
+    if (services.length <= 1) {
+      return services[0] || '';
+    }
+    return (
+      <Select defaultValue={services[0]}>
+        <SelectTrigger className="w-[180px]">
+          <SelectValue>{services[0]}</SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          {services.map((s, idx) => (
+            <SelectItem key={idx} value={s}>{s}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  })()}
+</TableCell>
                                     <TableCell>
                                         <Select
                                             value={appointment.status || "Scheduled"}

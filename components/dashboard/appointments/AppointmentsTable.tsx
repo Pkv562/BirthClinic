@@ -115,7 +115,7 @@ interface Appointment {
   patient_id: string;
   clinician_id: string;
   date: string;
-  service: string;
+  service: string[];
   weight?: string | null;
   vitals?: string | null;
   gestational_age?: string | null;
@@ -127,14 +127,17 @@ interface Appointment {
   clinician_name?: string;
 }
 
-interface AdvancedSearch {
+// Update advancedSearch state to include customStartDate and customEndDate
+type AdvancedSearch = {
   patient_name?: string;
   clinician_name?: string;
   service?: string;
   status?: string;
   payment_status?: string;
   date_filter?: string;
-}
+  customStartDate?: Date | null;
+  customEndDate?: Date | null;
+};
 
 type Column = ColumnDef<Appointment> & {
   accessorFn?: (row: Appointment) => string;
@@ -240,7 +243,12 @@ const columns: ColumnDef<Appointment>[] = [
   {
     accessorKey: "service",
     header: "Service",
-    cell: ({ row }) => <div>{row.getValue("service")}</div>,
+    cell: ({ row }) => {
+      const serviceValue = row.getValue("service");
+      if (Array.isArray(serviceValue)) return serviceValue.join(", ");
+      if (typeof serviceValue === "string") return serviceValue;
+      return "";
+    },
   },
   {
     accessorKey: "status",
@@ -328,6 +336,13 @@ export default function AppointmentsTable() {
     }
   });
   const { userData } = useCurrentUser();
+  const [customRangeDialogOpen, setCustomRangeDialogOpen] = useState(false);
+  const [tempCustomStartDate, setTempCustomStartDate] = useState<Date | undefined>(advancedSearch.customStartDate ?? undefined);
+  const [tempCustomEndDate, setTempCustomEndDate] = useState<Date | undefined>(advancedSearch.customEndDate ?? undefined);
+  const [tempService, setTempService] = useState("");
+  const [tempStatus, setTempStatus] = useState("");
+  const [tempPaymentStatus, setTempPaymentStatus] = useState("");
+  const [tempDateFilter, setTempDateFilter] = useState("");
 
   const columns: ColumnDef<Appointment>[] = [
     {
@@ -416,7 +431,10 @@ export default function AppointmentsTable() {
     {
       accessorKey: "service",
       header: "Service",
-      cell: ({ row }) => <div>{row.getValue("service")}</div>,
+      cell: ({ row }) => {
+        const serviceValue = row.getValue("service") as string[];
+        return <div>{Array.isArray(serviceValue) ? serviceValue.join(", ") : String(serviceValue)}</div>;
+      },
     },
     {
       accessorKey: "status",
@@ -692,20 +710,20 @@ export default function AppointmentsTable() {
     
     let result = [...appointments];
 
-    // Apply search term
+    // Apply search term (only filter by patient_name)
     if (searchTerm) {
       result = result.filter(
         (appointment) =>
           appointment.patient_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           appointment.clinician_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          appointment.service?.toLowerCase().includes(searchTerm.toLowerCase())
+          (Array.isArray(appointment.service) ? appointment.service.some(s => s.toLowerCase().includes(searchTerm.toLowerCase())) : false)
       );
     }
 
     // Apply advanced search
     if (advancedSearch.service && advancedSearch.service !== "all_services") {
       result = result.filter((appointment) =>
-        appointment.service.toLowerCase() === advancedSearch.service?.toLowerCase()
+        Array.isArray(appointment.service) ? appointment.service.some(s => s.toLowerCase() === advancedSearch.service?.toLowerCase()) : false
       );
     }
     if (advancedSearch.status && advancedSearch.status !== "all_statuses") {
@@ -719,8 +737,19 @@ export default function AppointmentsTable() {
       );
     }
 
-    // Apply date filter
-    if (advancedSearch.date_filter && advancedSearch.date_filter !== "all_dates") {
+    // Apply custom date range filter (overrides preset date filter)
+    if (advancedSearch.customStartDate || advancedSearch.customEndDate) {
+      result = result.filter((appointment) => {
+        const apptDate = new Date(appointment.date);
+        const start = advancedSearch.customStartDate
+          ? new Date(advancedSearch.customStartDate).setHours(0, 0, 0, 0)
+          : -Infinity;
+        const end = advancedSearch.customEndDate
+          ? new Date(advancedSearch.customEndDate).setHours(23, 59, 59, 999)
+          : Infinity;
+        return apptDate.getTime() >= start && apptDate.getTime() <= end;
+      });
+    } else if (advancedSearch.date_filter && advancedSearch.date_filter !== "all_dates") {
       const now = new Date();
       const appointmentDate = new Date();
       
@@ -1127,7 +1156,7 @@ export default function AppointmentsTable() {
             if (exportFilters.exportContent.appointmentInfo) {
               row.push(
                 new Date(appointment.date).toLocaleString(),
-                appointment.service || "",
+                appointment.service.join(", "),
                 appointment.status || "",
                 appointment.payment_status || ""
               );
@@ -1291,19 +1320,19 @@ export default function AppointmentsTable() {
             </TabsTrigger>
             <TabsTrigger 
               value="scheduled" 
-              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-50 data-[state=active]:to-blue-100 data-[state=active]:text-blue-800 data-[state=active]:shadow-sm data-[state=inactive]:text-gray-600 transition-all duration-200 data-[state=active]:border-l-4 data-[state=active]:border-l-blue-500"
+              className="data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-gray-900 data-[state=inactive]:text-gray-600 transition-all duration-200"
             >
               Scheduled
             </TabsTrigger>
             <TabsTrigger 
               value="completed" 
-              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-50 data-[state=active]:to-green-100 data-[state=active]:text-green-800 data-[state=active]:shadow-sm data-[state=inactive]:text-gray-600 transition-all duration-200 data-[state=active]:border-l-4 data-[state=active]:border-l-green-500"
+              className="data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-gray-900 data-[state=inactive]:text-gray-600 transition-all duration-200"
             >
               Completed
             </TabsTrigger>
             <TabsTrigger 
               value="canceled" 
-              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-red-50 data-[state=active]:to-red-100 data-[state=active]:text-red-800 data-[state=active]:shadow-sm data-[state=inactive]:text-gray-600 transition-all duration-200 data-[state=active]:border-l-4 data-[state=active]:border-l-red-500"
+              className="data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-gray-900 data-[state=inactive]:text-gray-600 transition-all duration-200"
             >
               Canceled
             </TabsTrigger>
@@ -1320,108 +1349,159 @@ export default function AppointmentsTable() {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <TextSearch />
-                  <span className="hidden lg:inline">Advanced Search</span>
-                  <span className="lg:hidden">Columns</span>
-                  <ChevronDownIcon />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>Filter by</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <div className="p-2 space-y-2">
-                  <Select
-                    value={advancedSearch.service || ""}
-                    onValueChange={(value) =>
-                      setAdvancedSearch({
-                        ...advancedSearch,
-                        service: value,
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select service" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all_services">All Services</SelectItem>
-                      <SelectItem value="Prenatal Care">Prenatal Care</SelectItem>
-                      <SelectItem value="Postpartum Care">Postpartum Care</SelectItem>
-                      <SelectItem value="Consultation">Consultation</SelectItem>
-                      <SelectItem value="Ultrasound">Ultrasound</SelectItem>
-                      <SelectItem value="Lab Test">Lab Test</SelectItem>
-                    </SelectContent>
-                  </Select>
-
-                  <Select
-                    value={advancedSearch.status || ""}
-                    onValueChange={(value) =>
-                      setAdvancedSearch({
-                        ...advancedSearch,
-                        status: value,
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all_statuses">All Statuses</SelectItem>
-                      <SelectItem value="Scheduled">Scheduled</SelectItem>
-                      <SelectItem value="Completed">Completed</SelectItem>
-                      <SelectItem value="Canceled">Canceled</SelectItem>
-                    </SelectContent>
-                  </Select>
-
-                  <Select
-                    value={advancedSearch.payment_status || ""}
-                    onValueChange={(value) =>
-                      setAdvancedSearch({
-                        ...advancedSearch,
-                        payment_status: value,
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select payment status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all_payment_statuses">All Payment Statuses</SelectItem>
-                      <SelectItem value="Pending">Pending</SelectItem>
-                      <SelectItem value="Paid">Paid</SelectItem>
-                      <SelectItem value="Unpaid">Unpaid</SelectItem>
-                    </SelectContent>
-                  </Select>
-
-                  <Select
-                    value={advancedSearch.date_filter || ""}
-                    onValueChange={(value) =>
-                      setAdvancedSearch({
-                        ...advancedSearch,
-                        date_filter: value,
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select date range" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all_dates">All Dates</SelectItem>
-                      <SelectItem value="today">Today</SelectItem>
-                      <SelectItem value="this_week">This Week</SelectItem>
-                      <SelectItem value="this_month">This Month</SelectItem>
-                      <SelectItem value="past_6_months">Past 6 Months</SelectItem>
-                      <SelectItem value="past_year">Past 1 Year</SelectItem>
-                      <SelectItem value="past_3_years">Past 3 Years</SelectItem>
-                      <SelectItem value="past_5_years">Past 5 Years</SelectItem>
-                    </SelectContent>
-                  </Select>
+            <Dialog open={customRangeDialogOpen} onOpenChange={(open) => {
+              setCustomRangeDialogOpen(open);
+              if (open) {
+                setTempCustomStartDate(advancedSearch.customStartDate ?? undefined);
+                setTempCustomEndDate(advancedSearch.customEndDate ?? undefined);
+                setTempService(advancedSearch.service || "");
+                setTempStatus(advancedSearch.status || "");
+                setTempPaymentStatus(advancedSearch.payment_status || "");
+                setTempDateFilter(advancedSearch.date_filter || "");
+              }
+            }}>
+              <Button variant="outline" size="sm" onClick={() => setCustomRangeDialogOpen(true)}>
+                <TextSearch />
+                <span className="hidden lg:inline">Advanced Filter</span>
+                <span className="lg:hidden">Filter</span>
+                <ChevronDownIcon />
+              </Button>
+              <DialogContent className="sm:max-w-[700px]">
+                <DialogHeader>
+                  <DialogTitle>Advanced Filter</DialogTitle>
+                </DialogHeader>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
+                  <div className="space-y-2">
+                    <Label>Service</Label>
+                    <Select
+                      value={tempService}
+                      onValueChange={setTempService}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select service" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all_services">All Services</SelectItem>
+                        <SelectItem value="Prenatal Care">Prenatal Care</SelectItem>
+                        <SelectItem value="Postpartum Care">Postpartum Care</SelectItem>
+                        <SelectItem value="Consultation">Consultation</SelectItem>
+                        <SelectItem value="Ultrasound">Ultrasound</SelectItem>
+                        <SelectItem value="Lab Test">Lab Test</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Status</Label>
+                    <Select
+                      value={tempStatus}
+                      onValueChange={setTempStatus}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all_statuses">All Statuses</SelectItem>
+                        <SelectItem value="Scheduled">Scheduled</SelectItem>
+                        <SelectItem value="Completed">Completed</SelectItem>
+                        <SelectItem value="Canceled">Canceled</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Payment Status</Label>
+                    <Select
+                      value={tempPaymentStatus}
+                      onValueChange={setTempPaymentStatus}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select payment status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all_payment_statuses">All Payment Statuses</SelectItem>
+                        <SelectItem value="Pending">Pending</SelectItem>
+                        <SelectItem value="Paid">Paid</SelectItem>
+                        <SelectItem value="Unpaid">Unpaid</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Date Range</Label>
+                    <Select
+                      value={tempDateFilter}
+                      onValueChange={setTempDateFilter}
+                      disabled={!!tempCustomStartDate || !!tempCustomEndDate}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select date range" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all_dates">All Dates</SelectItem>
+                        <SelectItem value="today">Today</SelectItem>
+                        <SelectItem value="this_week">This Week</SelectItem>
+                        <SelectItem value="this_month">This Month</SelectItem>
+                        <SelectItem value="past_6_months">Past 6 Months</SelectItem>
+                        <SelectItem value="past_year">Past 1 Year</SelectItem>
+                        <SelectItem value="past_3_years">Past 3 Years</SelectItem>
+                        <SelectItem value="past_5_years">Past 5 Years</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="col-span-1 sm:col-span-2">
+                    <div className="flex flex-col sm:flex-row gap-4">
+                      <div className="flex-1 space-y-2">
+                        <Label>Start Date</Label>
+                        <DatePicker
+                          value={tempCustomStartDate ?? undefined}
+                          onChange={setTempCustomStartDate}
+                        />
+                      </div>
+                      <div className="flex-1 space-y-2">
+                        <Label>End Date</Label>
+                        <DatePicker
+                          value={tempCustomEndDate ?? undefined}
+                          onChange={setTempCustomEndDate}
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setTempCustomStartDate(undefined);
+                        setTempCustomEndDate(undefined);
+                        setTempService("");
+                        setTempStatus("");
+                        setTempPaymentStatus("");
+                        setTempDateFilter("");
+                        setAdvancedSearch({});
+                      }}
+                    >
+                      Clear
+                    </Button>
+                  </DialogClose>
+                  <DialogClose asChild>
+                    <Button
+                      onClick={() => {
+                        setAdvancedSearch((prev) => ({
+                          ...prev,
+                          service: tempService,
+                          status: tempStatus,
+                          payment_status: tempPaymentStatus,
+                          date_filter: tempDateFilter,
+                          customStartDate: tempCustomStartDate ?? undefined,
+                          customEndDate: tempCustomEndDate ?? undefined,
+                        }));
+                      }}
+                    >
+                      Apply
+                    </Button>
+                  </DialogClose>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
 
             <Dialog open={openExportDialog} onOpenChange={setOpenExportDialog}>
               <DialogTrigger asChild>

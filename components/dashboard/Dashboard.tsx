@@ -105,7 +105,7 @@ interface Appointment {
   patient_id: string;
   clinician_id: string;
   date: string;
-  service: string;
+  service: string[];
   weight: string | null;
   vitals: string | null;
   gestational_age: string | null;
@@ -288,6 +288,7 @@ export default function Dashboard() {
 
       console.log('Fetched appointments:', appointmentsData);
 
+      // When mapping appointments from Supabase, ensure service is always an array:
       const formattedAppointments = appointmentsData?.map((appointment) => {
         const patient = appointment.patient?.person || {};
         const clinician = appointment.clinician?.person || {};
@@ -296,7 +297,7 @@ export default function Dashboard() {
           patient_id: appointment.patient_id,
           clinician_id: appointment.clinician_id,
           date: appointment.date,
-          service: appointment.service,
+          service: Array.isArray(appointment.service) ? appointment.service : [appointment.service].filter(Boolean),
           weight: appointment.weight,
           vitals: appointment.vitals,
           gestational_age: appointment.gestational_age,
@@ -622,7 +623,12 @@ export default function Dashboard() {
     {
       accessorKey: "service",
       header: "Service",
-      cell: ({ row }) => <div>{row.getValue("service")}</div>,
+      cell: ({ row }) => {
+        const serviceValue = row.getValue("service");
+        if (Array.isArray(serviceValue)) return serviceValue.join(", ");
+        if (typeof serviceValue === "string") return serviceValue;
+        return "";
+      },
     },
     {
       accessorKey: "status",
@@ -809,14 +815,14 @@ export default function Dashboard() {
         (appointment) =>
           appointment.patient_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           appointment.clinician_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          appointment.service?.toLowerCase().includes(searchTerm.toLowerCase())
+          (Array.isArray(appointment.service) ? appointment.service.some(s => s.toLowerCase().includes(searchTerm.toLowerCase())) : false)
       );
     }
 
     // Apply advanced search
     if (advancedSearch.service && advancedSearch.service !== "all_services") {
       result = result.filter((appointment) =>
-        appointment.service.toLowerCase() === advancedSearch.service?.toLowerCase()
+        Array.isArray(appointment.service) ? appointment.service.some(s => s.toLowerCase() === advancedSearch.service?.toLowerCase()) : false
       );
     }
     if (advancedSearch.status && advancedSearch.status !== "all_statuses") {
@@ -920,65 +926,65 @@ export default function Dashboard() {
     <main className="grid flex-1 gap-4 p-4 sm:px-6 sm:py-0 md:gap-8">
       {/* Top cards (Active Patients, Active Clinicians, Today's Appointments) */}
       <div className="grid w-full gap-4 sm:grid-cols-2 md:grid-cols-3">
-        <Card className="@container/card border-l-4 border-l-green-500 bg-gradient-to-r from-green-50 to-white">
+        <Card className="@container/card bg-white">
           <CardHeader className="relative flex items-center">
-            <div className="rounded border-1 p-2 mr-2 bg-green-100">
-              <Users size={20} className="text-green-600" />
+            <div className="rounded border-1 p-2 mr-2 bg-gray-100">
+              <Users size={20} className="text-gray-700" />
             </div>
             <div>
-              <CardDescription className="text-green-700">Active Patients</CardDescription>
-              <CardTitle className="@[250px]/card:text-3xl text-2xl font-semibold tabular-nums text-green-800">
+              <CardDescription className="text-gray-700">Active Patients</CardDescription>
+              <CardTitle className="@[250px]/card:text-3xl text-2xl font-semibold tabular-nums text-gray-900">
                 {loading ? "Loading..." : activePatients.toLocaleString()}
               </CardTitle>
             </div>
           </CardHeader>
           <CardFooter className="flex-col items-start gap-1 text-sm">
-            <div className="line-clamp-1 font-medium text-green-700">
+            <div className="line-clamp-1 font-medium text-gray-700">
               Current number of registered patients
             </div>
-            <div className="text-green-600">
+            <div className="text-gray-600">
               Monitor patient growth trends
             </div>
           </CardFooter>
         </Card>
-        <Card className="@container/card border-l-4 border-l-green-500 bg-gradient-to-r from-green-50 to-white">
+        <Card className="@container/card bg-white">
           <CardHeader className="relative flex items-center">
-            <div className="rounded border-1 p-2 mr-2 bg-green-100">
-              <Stethoscope size={20} className="text-green-600" />
+            <div className="rounded border-1 p-2 mr-2 bg-gray-100">
+              <Stethoscope size={20} className="text-gray-700" />
             </div>
             <div>
-              <CardDescription className="text-green-700">Active Clinicians</CardDescription>
-              <CardTitle className="@[250px]/card:text-3xl text-2xl font-semibold tabular-nums text-green-800">
+              <CardDescription className="text-gray-700">Active Clinicians</CardDescription>
+              <CardTitle className="@[250px]/card:text-3xl text-2xl font-semibold tabular-nums text-gray-900">
                 {loading ? "Loading..." : activeClinicians.toLocaleString()}
               </CardTitle>
             </div>
           </CardHeader>
           <CardFooter className="flex-col items-start gap-1 text-sm">
-            <div className="line-clamp-1 font-medium text-green-700">
+            <div className="line-clamp-1 font-medium text-gray-700">
               Current number of active healthcare providers
             </div>
-            <div className="text-green-600">
+            <div className="text-gray-600">
               Ensure adequate staffing levels
             </div>
           </CardFooter>
         </Card>
-        <Card className="@container/card border-l-4 border-l-blue-500 bg-gradient-to-r from-blue-50 to-white">
+        <Card className="@container/card bg-white">
           <CardHeader className="relative flex items-center">
-            <div className="rounded border-1 p-2 mr-2 bg-blue-100">
-              <Calendar size={20} className="text-blue-600" />
+            <div className="rounded border-1 p-2 mr-2 bg-gray-100">
+              <Calendar size={20} className="text-gray-700" />
             </div>
             <div>
-              <CardDescription className="text-blue-700">Today's Appointments</CardDescription>
-              <CardTitle className="@[250px]/card:text-3xl text-2xl font-semibold tabular-nums text-blue-800">
+              <CardDescription className="text-gray-700">Today's Appointments</CardDescription>
+              <CardTitle className="@[250px]/card:text-3xl text-2xl font-semibold tabular-nums text-gray-900">
                 {loading ? "Loading..." : todayAppointmentsCount.toLocaleString()}
               </CardTitle>
             </div>
           </CardHeader>
           <CardFooter className="flex-col items-start gap-1 text-sm">
-            <div className="line-clamp-1 font-medium text-blue-700">
+            <div className="line-clamp-1 font-medium text-gray-700">
               Appointments scheduled for today
             </div>
-            <div className="text-blue-600">
+            <div className="text-gray-600">
               Track daily appointment utilization
             </div>
           </CardFooter>
@@ -990,7 +996,7 @@ export default function Dashboard() {
         {/* Patient Distribution Analysis Card + Clinician Schedule Panel */}
         <div className="flex flex-col md:flex-row gap-4">
           {/* Chart Card - 55% width */}
-          <Card className="w-full md:w-[62%] flex-shrink-0 rounded-lg border border-gray-200 relative z-0">
+          <Card className="w-full md:w-[62%] flex-shrink-0 rounded-lg border border-gray-200 relative z-0 bg-white">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle>Patient Distribution Analysis</CardTitle>
@@ -1140,12 +1146,7 @@ export default function Dashboard() {
                           barGap={0}
                           barCategoryGap={0}
                         >
-                          <defs>
-                            <linearGradient id="blueToVioletGradient" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor="#3b82f6" />
-                              <stop offset="100%" stopColor="#8b5cf6" />
-                            </linearGradient>
-                          </defs>
+                          {/* Remove gradient defs */}
                           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                           <XAxis
                             dataKey="age"
@@ -1172,7 +1173,7 @@ export default function Dashboard() {
                           <ChartTooltip content={<ChartTooltipContent />} />
                           <Bar
                             dataKey="numberOfPatients"
-                            fill="url(#blueToVioletGradient)"
+                            fill="#000"
                             barSize={70}
                             radius={[4, 4, 0, 0]}
                             minPointSize={0}
@@ -1193,28 +1194,7 @@ export default function Dashboard() {
                         barGap={0}
                         barCategoryGap={2}
                       >
-                        <defs>
-                          <linearGradient id="clinicianBlueGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#3b82f6" />
-                            <stop offset="100%" stopColor="#1d4ed8" />
-                          </linearGradient>
-                          <linearGradient id="clinicianGreenGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#10b981" />
-                            <stop offset="100%" stopColor="#059669" />
-                          </linearGradient>
-                          <linearGradient id="clinicianPurpleGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#8b5cf6" />
-                            <stop offset="100%" stopColor="#7c3aed" />
-                          </linearGradient>
-                          <linearGradient id="clinicianOrangeGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#f59e0b" />
-                            <stop offset="100%" stopColor="#d97706" />
-                          </linearGradient>
-                          <linearGradient id="clinicianPinkGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#ec4899" />
-                            <stop offset="100%" stopColor="#db2777" />
-                          </linearGradient>
-                        </defs>
+                        {/* Remove all gradient defs */}
                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                         <XAxis
                           dataKey="clinicianName"
@@ -1246,10 +1226,9 @@ export default function Dashboard() {
                           minPointSize={0}
                           maxBarSize={30}
                         >
-                          {clinicianData.map((entry, index) => {
-                            console.log(`Rendering cell ${index} with color:`, entry.color);
-                            return <Cell key={`cell-${index}`} fill={entry.color} />;
-                          })}
+                          {clinicianData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill="#000" />
+                          ))}
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
@@ -1409,19 +1388,19 @@ export default function Dashboard() {
                 </TabsTrigger>
                 <TabsTrigger 
                   value="scheduled" 
-                  className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-50 data-[state=active]:to-blue-100 data-[state=active]:text-blue-800 data-[state=active]:shadow-sm data-[state=inactive]:text-gray-600 transition-all duration-200 data-[state=active]:border-l-4 data-[state=active]:border-l-blue-500"
+                  className="data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-gray-900 data-[state=inactive]:text-gray-600 transition-all duration-200"
                 >
                   Scheduled
                 </TabsTrigger>
                 <TabsTrigger 
                   value="completed" 
-                  className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-50 data-[state=active]:to-green-100 data-[state=active]:text-green-800 data-[state=active]:shadow-sm data-[state=inactive]:text-gray-600 transition-all duration-200 data-[state=active]:border-l-4 data-[state=active]:border-l-green-500"
+                  className="data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-gray-900 data-[state=inactive]:text-gray-600 transition-all duration-200"
                 >
                   Completed
                 </TabsTrigger>
                 <TabsTrigger 
                   value="canceled" 
-                  className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-red-50 data-[state=active]:to-red-100 data-[state=active]:text-red-800 data-[state=active]:shadow-sm data-[state=inactive]:text-gray-600 transition-all duration-200 data-[state=active]:border-l-4 data-[state=active]:border-l-red-500"
+                  className="data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-gray-900 data-[state=inactive]:text-gray-600 transition-all duration-200"
                 >
                   Canceled
                 </TabsTrigger>
